@@ -1,0 +1,28 @@
+WITH CTE AS (
+    SELECT 
+        g.GRPG_ID,
+        CASE WHEN g.ALTID_SOR_CD = '8018' THEN 'GBD' END AS ALT_ID_SOURCE_CODE,
+        CASE 
+            WHEN g.ALTID_TYPE_CD = '8069I' THEN 'GBD Facets IPA PRPR ID'
+            WHEN g.ALTID_TYPE_CD = '8069' THEN 'GBD Facets Provider ID'
+        END AS ALT_ID_TYPE_CODE,
+        g.ALTID_TXT,
+        g.GRPG_ALTID_EFCTV_DT,
+        g.GRPG_ALTID_TRMNTN_DT,
+        g.GRPG_ALTID_TRMNTN_RSN_CD
+    FROM GRPG_ALT_IDFCTN g
+    WHERE g.GRPG_ID IN ('<[Grouping_ID_FL]>')
+)
+SELECT 
+    GRPG_ID,
+    CASE 
+        WHEN COUNT(CASE 
+                      WHEN ALTID_TXT IN (<[Alt_Id_List]>) 
+                       AND ALT_ID_TYPE_CODE IN ('GBD Facets IPA PRPR ID','GBD Facets Provider ID') 
+                       AND ALT_ID_SOURCE_CODE = 'GBD' 
+                    THEN 1 END) > 0
+        THEN 'Pass'
+        ELSE 'Fail'
+    END AS audit_status
+FROM CTE
+GROUP BY GRPG_ID
