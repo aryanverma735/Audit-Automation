@@ -1,0 +1,11 @@
+SELECT 
+    CASE 
+        WHEN COUNT(*) > 0 THEN 'Audit Pass'
+        ELSE 'Audit Fail'
+    END AS Audit_Status
+FROM PROV_ALT_IDFCTN
+WHERE MSTR_PROV_ID = '<[Alt_ID_Only_Individual_EID]>'
+  AND ALTID_TXT = '<[Individual_ALT_ID.ByField("Alternate ID Value")]>'
+  AND ALTID_SOR_CD = '<[Individual_ALT_ID.ByField("Alternate ID Source Code")]>'
+  AND ALTID_TYPE_CD = '<[Individual_ALT_ID.ByField("Alternate ID Type Code")]>'
+  AND ALTID_ST_PRVNC_CD = '<[Individual_ALT_ID.ByField("Alternate ID State code")]>'
