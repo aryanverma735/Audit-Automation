@@ -1,0 +1,103 @@
+WITH params AS (
+  SELECT '<[Ntwk_Rmbrs_Only_Ind_Practice_Address]>' AS full_addr FROM dual
+),
+addr_filter AS (
+  SELECT 
+    full_addr,
+    REGEXP_REPLACE(UPPER(full_addr), '[^A-Z0-9]+', '') AS full_addr_norm
+  FROM params
+),
+base AS (
+  SELECT
+    L_IND.MSTR_PROV_ID          AS IND_MSTR_PROV_ID,
+    K.MSTR_PROV_ID              AS ORG_EID,
+    M.PADRS_TYPE_CD             AS PADRS_TYPE_CD,
+
+    (
+      SELECT LISTAGG(val, ', ') WITHIN GROUP (ORDER BY pos)
+      FROM (
+        SELECT 1 AS pos, NULLIF(TRIM(S.ADRS_LINE_1_TXT), '') AS val FROM dual
+        UNION ALL SELECT 2, NULLIF(TRIM(S.ADRS_LINE_2_TXT), '') FROM dual
+        UNION ALL SELECT 3, NULLIF(TRIM(S.ADRS_LINE_3_TXT), '') FROM dual
+        UNION ALL SELECT 4, NULLIF(TRIM(S.ADRS_CITY_NM),  '') FROM dual
+        UNION ALL SELECT 5,
+          CASE
+            WHEN NVL(TRIM(S.POSTL_CD_ST_PRVNC_NM), '') IS NOT NULL
+              OR NVL(TRIM(S.POSTL_CD), '') IS NOT NULL
+            THEN TRIM(
+                   NVL(TRIM(S.POSTL_CD_ST_PRVNC_NM), '') ||
+                   CASE
+                     WHEN NVL(TRIM(S.POSTL_CD_ST_PRVNC_NM), '') IS NOT NULL
+                      AND NVL(TRIM(S.POSTL_CD), '') IS NOT NULL
+                     THEN ' ' ELSE '' END ||
+                   NVL(TRIM(S.POSTL_CD), '')
+                 )
+            ELSE NULL
+          END
+        FROM dual
+      )
+      WHERE val IS NOT NULL
+    ) AS ADDRESS_FULL,
+
+    NW.RGNL_NTWK_ID,
+    NW.NTWK_TRMNTN_DT,
+    NW.NTWK_TRMNTN_RSN_CD,
+    J.RLTD_PADRS_NTWK_EFCTV_DT,
+    J.RLTD_PADRS_NTWK_TRMNTN_DT,
+    J.RLTD_PADRS_NTWK_TRMNTN_RSN_CD,
+
+    PNC.CP_TYPE_CD AS ACPTG_PTNT_IND,
+    N.MAX_MBR_CNT,
+    N.POA_NTWK_TRMNTN_RSN_CD,
+    J.DIR_DSPLY_IND,
+    J.MIN_AGE_NBR,
+    J.MAX_AGE_NBR,
+    J.PAT_GNDR_CD,
+    J.DIR_SPRSN_RSN_CD,
+    J.ROLE_CD,
+    PS.SPCLTY_CD
+
+  FROM SPSOWNER.RLTD_PADRS_NTWK J
+  JOIN SPSOWNER.RLTD_PADRS K 
+    ON K.RLTD_PADRS_KEY = J.RLTD_PADRS_KEY
+  JOIN SPSOWNER.PROV L_ORG 
+    ON L_ORG.MSTR_PROV_ID = K.MSTR_PROV_ID 
+  JOIN SPSOWNER.PROV L_IND 
+    ON L_IND.MSTR_PROV_ID = K.RLTD_MSTR_PROV_ID
+  JOIN SPSOWNER.POA M 
+    ON M.POA_KEY = K.POA_KEY 
+  JOIN SPSOWNER.POA_NTWK N 
+    ON N.POA_NTWK_KEY = J.POA_NTWK_KEY
+  JOIN SPSOWNER.PROV_ORG_NTWK PON 
+    ON PON.PROV_ORG_NTWK_KEY = N.PROV_ORG_NTWK_KEY
+   AND PON.MSTR_PROV_ID = L_ORG.MSTR_PROV_ID
+  JOIN SPSOWNER.NTWK NW 
+    ON PON.NTWK_KEY = NW.NTWK_KEY
+  JOIN SPSOWNER.STNDRDZD_ADRS S 
+    ON M.SPS_STNDRDZD_ADRS_ID = S.SPS_STNDRDZD_ADRS_ID
+  JOIN SPSOWNER.RLTD_PADRS_NTWK_CP PNC 
+    ON PNC.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY 
+  JOIN SPSOWNER.RLTD_PADRS_NTWK_SPCLTY RS
+    ON J.RLTD_PADRS_NTWK_KEY = RS.RLTD_PADRS_NTWK_KEY
+  JOIN PROV_SPCLTY PS
+    ON RS.PROV_SPCLTY_KEY = PS.PROV_SPCLTY_KEY
+  WHERE 
+    L_IND.MSTR_PROV_ID = '<[Ntwk_Rmbrs_Only_Ind_Individual_EID]>'
+    AND NW.RGNL_NTWK_ID = '<[CurrentRow2.ByField("Network Id")]>'
+    AND PNC.CP_TYPE_CD = '<[Ntwk_Rmbrs_Only_Ind_Accepting_Patient_Type]>'
+    AND N.MAX_MBR_CNT = '<[Ntwk_Rmbrs_Only_Ind_Max_Member_Count]>'
+    AND J.RLTD_PADRS_NTWK_EFCTV_DT = TO_DATE('<[Ntwk_Rmbrs_Only_Ind_Network_Specialty_Effective_Date]>','MM/DD/YYYY')
+    AND J.DIR_DSPLY_IND = '<[Ntwk_Rmbrs_Only_Ind_Directory_Display]>'
+    AND J.MIN_AGE_NBR = '<[Ntwk_Rmbrs_Only_Ind_Minimum_Age]>'
+    AND J.MAX_AGE_NBR = '<[Ntwk_Rmbrs_Only_Ind_Maximum_Age]>'
+    AND J.PAT_GNDR_CD = '<[Ntwk_Rmbrs_Only_Ind_Gender]>'
+    AND J.ROLE_CD = '<[Ntwk_Rmbrs_Only_Ind_Role_Code]>'
+)
+SELECT
+  CASE WHEN cnt > 0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS audit_result
+FROM (
+  SELECT COUNT(*) AS cnt
+  FROM base b
+  CROSS JOIN addr_filter p
+  WHERE REGEXP_REPLACE(UPPER(b.ADDRESS_FULL), '[^A-Z0-9]+', '') = p.full_addr_norm
+)
