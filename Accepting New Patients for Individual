@@ -1,0 +1,70 @@
+SELECT 
+    CASE 
+        WHEN COUNT(*) > 0 THEN 'Audit Pass'
+        ELSE 'Audit Fail'
+    END AS Audit_Status
+FROM (
+    WITH params AS (
+      SELECT '<[Accepting_New_Patients_Org_Prac_Adrs]>' AS full_addr FROM dual
+    ),
+    addr_filter AS (
+      SELECT 
+        full_addr,
+        REGEXP_REPLACE(UPPER(full_addr), '[^A-Z0-9]+', '') AS full_addr_norm
+      FROM params
+    ),
+    base AS (
+      SELECT
+        K.MSTR_PROV_ID AS ORG_EID,
+        M.PADRS_TYPE_CD AS PADRS_TYPE_CD,
+        (
+          SELECT LISTAGG(val, ', ') WITHIN GROUP (ORDER BY pos)
+          FROM (
+            SELECT 1 AS pos, NULLIF(TRIM(S.ADRS_LINE_1_TXT), '') AS val FROM dual
+            UNION ALL SELECT 2, NULLIF(TRIM(S.ADRS_LINE_2_TXT), '') FROM dual
+            UNION ALL SELECT 3, NULLIF(TRIM(S.ADRS_LINE_3_TXT), '') FROM dual
+            UNION ALL SELECT 4, NULLIF(TRIM(S.ADRS_CITY_NM), '') FROM dual
+            UNION ALL SELECT 5,
+              CASE
+                WHEN NVL(TRIM(S.POSTL_CD_ST_PRVNC_NM), '') IS NOT NULL
+                  OR NVL(TRIM(S.POSTL_CD), '') IS NOT NULL
+                THEN TRIM(
+                       NVL(TRIM(S.POSTL_CD_ST_PRVNC_NM), '') ||
+                       CASE
+                         WHEN NVL(TRIM(S.POSTL_CD_ST_PRVNC_NM), '') IS NOT NULL
+                          AND NVL(TRIM(S.POSTL_CD), '') IS NOT NULL
+                         THEN ' ' ELSE '' END ||
+                       NVL(TRIM(S.POSTL_CD), '')
+                     )
+                ELSE NULL
+              END
+            FROM dual
+          )
+          WHERE val IS NOT NULL
+        ) AS ADDRESS_FULL,
+        NW.RGNL_NTWK_ID,
+        XX.CP_TYPE_CD,
+        XX.POA_CP_EFCTV_DT,
+        XX.POA_CP_TRMNTN_DT
+      FROM SPSOWNER.RLTD_PADRS_NTWK J
+      JOIN SPSOWNER.RLTD_PADRS K ON K.RLTD_PADRS_KEY = J.RLTD_PADRS_KEY
+      JOIN SPSOWNER.PROV PROV ON PROV.MSTR_PROV_ID = K.MSTR_PROV_ID
+      JOIN SPSOWNER.POA M ON M.POA_KEY = K.POA_KEY
+      JOIN SPSOWNER.POA_NTWK N ON N.POA_NTWK_KEY = J.POA_NTWK_KEY
+      JOIN SPSOWNER.POA_NTWK_CP XX ON N.POA_NTWK_KEY = XX.POA_NTWK_KEY
+      JOIN SPSOWNER.PROV_ORG_NTWK PON ON PON.PROV_ORG_NTWK_KEY = N.PROV_ORG_NTWK_KEY
+      JOIN SPSOWNER.NTWK NW ON PON.NTWK_KEY = NW.NTWK_KEY
+      JOIN SPSOWNER.STNDRDZD_ADRS S ON M.SPS_STNDRDZD_ADRS_ID = S.SPS_STNDRDZD_ADRS_ID
+      JOIN SPSOWNER.PROV_SPCLTY PS ON PROV.MSTR_PROV_ID = PS.MSTR_PROV_ID
+      JOIN SPSOWNER.RLTD_PADRS_NTWK_CP PNC ON PNC.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY
+      WHERE 
+        PROV.MSTR_PROV_ID = '<[Accepting_New_Patients_Org_EID]>'
+        AND NW.RGNL_NTWK_ID = '<[Accepting_New_Patients_Org_Network_ID]>'
+        AND XX.CP_TYPE_CD = '<[Accepting_New_Patients_Org_Accepting_Patient_Type]>'
+        AND XX.POA_CP_EFCTV_DT = TO_DATE('<[Accepting_New_Patients_Org_Effective_Date]>','MM/DD/YYYY')
+    )
+    SELECT *
+    FROM base b
+    CROSS JOIN addr_filter p
+    WHERE REGEXP_REPLACE(UPPER(b.ADDRESS_FULL), '[^A-Z0-9]+', '') = p.full_addr_norm
+)
