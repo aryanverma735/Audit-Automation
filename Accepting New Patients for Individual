@@ -5,7 +5,7 @@ SELECT
     END AS Audit_Status
 FROM (
     WITH params AS (
-      SELECT '<[Accepting_New_Patients_Org_Prac_Adrs]>' AS full_addr FROM dual
+      SELECT '<[Accepting_New_Patients_Ind_Prac_Adrs]>' AS full_addr FROM dual
     ),
     addr_filter AS (
       SELECT 
@@ -15,7 +15,7 @@ FROM (
     ),
     base AS (
       SELECT
-        K.MSTR_PROV_ID AS ORG_EID,
+        K.MSTR_PROV_ID AS IND_EID,
         M.PADRS_TYPE_CD AS PADRS_TYPE_CD,
         (
           SELECT LISTAGG(val, ', ') WITHIN GROUP (ORDER BY pos)
@@ -58,10 +58,10 @@ FROM (
       JOIN SPSOWNER.PROV_SPCLTY PS ON PROV.MSTR_PROV_ID = PS.MSTR_PROV_ID
       JOIN SPSOWNER.RLTD_PADRS_NTWK_CP PNC ON PNC.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY
       WHERE 
-        PROV.MSTR_PROV_ID = '<[Accepting_New_Patients_Org_EID]>'
-        AND NW.RGNL_NTWK_ID = '<[Accepting_New_Patients_Org_Network_ID]>'
-        AND XX.CP_TYPE_CD = '<[Accepting_New_Patients_Org_Accepting_Patient_Type]>'
-        AND XX.POA_CP_EFCTV_DT = TO_DATE('<[Accepting_New_Patients_Org_Effective_Date]>','MM/DD/YYYY')
+        PROV.MSTR_PROV_ID = '<[Accepting_New_Patients_Ind_EID]>'
+        AND NW.RGNL_NTWK_ID = '<[Accepting_New_Patients_Ind_Network_ID]>'
+        AND XX.CP_TYPE_CD = '<[Accepting_New_Patients_Ind_Accepting_Patient_Type]>'
+        AND XX.POA_CP_EFCTV_DT = TO_DATE('<[Accepting_New_Patients_Ind_Effective_Date]>','MM/DD/YYYY')
     )
     SELECT *
     FROM base b
