@@ -1,0 +1,24 @@
+select case WHEN  count(*) > 0
+  THEN 'Audit Pass'
+  ELSE 'Audit Fail'
+END as Audit_Status
+from
+(SELECT 
+P.MSTR_PROV_ID,
+A.POA_KEY,
+OC.OFC_CHARSTC_TYPE_CD,
+OC.OFC_CHARSTC_CTGRY_CD,
+OC.POFC_CHARSTC_EFCTV_DT,
+OC.DIR_DSPLY_IND
+FROM PROV P
+JOIN POA  A
+  ON A.MSTR_PROV_ID = P.MSTR_PROV_ID
+JOIN POFC_CHARSTC OC
+  ON OC.POA_KEY = A.POA_KEY
+
+WHERE P.MSTR_PROV_ID = '<[Office_Char_Org_EID]>'
+AND A.POA_KEY = '<[Office_char_Org_adrs.ByField("Address ID")]>'
+AND OC.OFC_CHARSTC_TYPE_CD = '<[Office_char_Org_Charac.ByField("Final Type Code")]>'
+AND OC.POFC_CHARSTC_EFCTV_DT = TO_DATE('<[Office_char_Org_Charac.ByField("Effective Date")]>','MM/DD/YYYY')
+AND OC.OFC_CHARSTC_CTGRY_CD = '<[Office_char_Org_Charac.ByField("Final Category Code")]>'
+AND OC.DIR_DSPLY_IND = '<[Office_char_Org_Charac.ByField("Final Display Indicator")]>')
