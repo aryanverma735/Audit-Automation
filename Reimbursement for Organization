@@ -1,0 +1,71 @@
+
+WITH base AS (
+    SELECT
+        P.MSTR_PROV_ID,
+        PO.POA_KEY,
+        PW.RA_1_ID,
+        PW.DIR_IND,
+        PW.ACPTG_NEW_PATS_IND,
+        PW.RA_EFCTV_DT,
+        PW.PROV_WTHLD_EFCTV_DT,
+        PW.RA_SOR_CD,
+        PW.RA_1_TYPE_CD,
+        PW.CNTRCT_TFD_NBR,
+
+        /* === Concatenated address from S_DIR === */
+        RTRIM(
+            /* Line 1 */
+            NVL2(NULLIF(TRIM(S_DIR.ADRS_LINE_1_TXT), ''),
+                 TRIM(S_DIR.ADRS_LINE_1_TXT) || ',',
+                 ''
+            ) ||
+            /* Line 2 */
+            NVL2(NULLIF(TRIM(S_DIR.ADRS_LINE_2_TXT), ''),
+                 TRIM(S_DIR.ADRS_LINE_2_TXT) || ',',
+                 ''
+            ) ||
+            /* Line 3 */
+            NVL2(NULLIF(TRIM(S_DIR.ADRS_LINE_3_TXT), ''),
+                 TRIM(S_DIR.ADRS_LINE_3_TXT) || ',',
+                 ''
+            ) ||
+            /* City */
+            NVL2(NULLIF(TRIM(S_DIR.ADRS_CITY_NM), ''),
+                 TRIM(S_DIR.ADRS_CITY_NM) || ',',
+                 ''
+            ) ||
+            /* State / Province */
+            NVL2(NULLIF(TRIM(S_DIR.POSTL_CD_ST_PRVNC_NM), ''),
+                 TRIM(S_DIR.POSTL_CD_ST_PRVNC_NM) || ',',
+                 ''
+            ) ||
+            /* Postal Code (no plus-four in your source) */
+            CASE
+                WHEN NULLIF(TRIM(S_DIR.POSTL_CD), '') IS NOT NULL
+                THEN TRIM(S_DIR.POSTL_CD)
+                ELSE NULL
+            END
+        , ',') AS FULL_ADDRESS
+    FROM PROV P
+    JOIN POA PO
+      ON P.MSTR_PROV_ID = PO.MSTR_PROV_ID
+    JOIN POA_RA_W PW
+      ON PW.POA_KEY = PO.POA_KEY
+    JOIN STNDRDZD_ADRS S_DIR
+      ON S_DIR.SPS_STNDRDZD_ADRS_ID = PO.SPS_STNDRDZD_ADRS_ID
+    WHERE PW.RA_1_ID       = 'MWVP0057'
+      AND P.MSTR_PROV_ID   = '1000084742'
+      AND PW.DIR_IND       = 'Y'
+      AND TRUNC(PW.RA_EFCTV_DT) = TO_DATE('01/01/2009','MM/DD/YYYY')
+)
+SELECT CASE
+         WHEN EXISTS (
+           SELECT 1
+           FROM base
+           WHERE REGEXP_REPLACE(LOWER(NVL(FULL_ADDRESS, '')), '[[:space:]]+|,|-|\.', '')
+               = REGEXP_REPLACE(LOWER('376 Wv Highway 5 E, Glenville, WV, 26351'), '[[:space:]]+|,|-|\.', '')
+         )
+         THEN 'Audit Pass'
+         ELSE 'Audit Fail'
+       END AS audit_result
+FROM dual;
