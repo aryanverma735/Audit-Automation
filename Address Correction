@@ -1,3 +1,4 @@
+
 WITH addr AS (
   SELECT 
     P.MSTR_PROV_ID, 
@@ -40,28 +41,32 @@ WITH addr AS (
   WHERE
      P.MSTR_PROV_ID =  '1101368077' 
     AND POA.PADRS_TYPE_CD = '176' 
-
-    /* 2) Flexible comma-list filter (uncomment if you prefer list style)
-       AND ( :type_cd_filter IS NULL
-             OR INSTR(',' || :type_cd_filter || ',', ',' || POA.PADRS_TYPE_CD || ',') > 0
-           )
-    */
+),
+filtered AS (
+  SELECT
+    MSTR_PROV_ID,
+    POA_KEY,
+    PADRS_TYPE_CD,
+    SPS_STNDRDZD_ADRS_ID,
+    PADRS_TRMNTN_DT,
+    PADRS_TRMNTN_RSN_CD,
+    ACTIVE_ADDRESS,
+    TERMED_ADDRESS
+  FROM addr
+  WHERE
+    /* === Address contains logic (case-insensitive, partial, across both built strings) === */
+    (
+      :addr_contains IS NULL
+      OR UPPER(ACTIVE_ADDRESS) LIKE '%' || UPPER('2296 Opitz Blvd,Suite 110 &amp; 120,,Woodbridge,VA,UNITED STATES,22191') || '%'
+      OR (
+           UPPER(TERMED_ADDRESS) LIKE '%' || UPPER('12070 Old Line Ctr, Ste 205, Waldorf, MD, 20602') || '%'
+           /* === Apply the termed-only date filter here === */
+           AND PADRS_TRMNTN_DT IS NOT NULL
+           AND PADRS_TRMNTN_DT != TO_DATE('12/31/9999','MM/DD/YYYY')
+         )
+    )
 )
 SELECT
-  MSTR_PROV_ID,
-  POA_KEY,
-  PADRS_TYPE_CD,
-  SPS_STNDRDZD_ADRS_ID,
-  PADRS_TRMNTN_DT,
-  PADRS_TRMNTN_RSN_CD,
-  ACTIVE_ADDRESS,
-  TERMED_ADDRESS
-FROM addr
-WHERE
-  /* === Address contains logic (case-insensitive, partial, across both built strings) === */
-  (
-    :addr_contains IS NULL
-    OR UPPER(ACTIVE_ADDRESS) LIKE '%' || UPPER('2296 Opitz Blvd,Suite 110 & 120,,Woodbridge,VA,UNITED STATES,22191') || '%'
-    OR UPPER(TERMED_ADDRESS) LIKE '%' || UPPER('12070 Old Line Ctr, Ste 205, Waldorf, MD, 20602') || '%'
-  )
-ORDER BY PADRS_TYPE_CD, POA_KEY;
+  CASE WHEN COUNT(*) = 2 THEN 'Audit Pass' ELSE 'Audit Fail' END AS AUDIT_STATUS,
+  COUNT(*) AS MATCH_COUNT
+FROM filtered;
