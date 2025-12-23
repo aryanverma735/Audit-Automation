@@ -1,0 +1,67 @@
+WITH addr AS (
+  SELECT 
+    P.MSTR_PROV_ID, 
+    POA.POA_KEY,
+    POA.PADRS_TYPE_CD,
+    S.SPS_STNDRDZD_ADRS_ID,
+    POA.PADRS_TRMNTN_DT,
+    POA.PADRS_TRMNTN_RSN_CD,
+
+    /* === ACTIVE_ADDRESS: build ONLY from S — Country BEFORE postal; no plus-four === */
+    COALESCE(
+      RTRIM(
+        NVL2(NULLIF(TRIM(S.ADRS_LINE_1_TXT), ''), TRIM(S.ADRS_LINE_1_TXT) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_LINE_2_TXT), ''), TRIM(S.ADRS_LINE_2_TXT) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_LINE_3_TXT), ''), TRIM(S.ADRS_LINE_3_TXT) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_CITY_NM), ''),     TRIM(S.ADRS_CITY_NM)     || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.POSTL_CD_ST_PRVNC_NM), ''), TRIM(S.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_CNTRY_NM), ''), TRIM(S.ADRS_CNTRY_NM) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.POSTL_CD), ''), TRIM(S.POSTL_CD), '')
+      , ', ')
+    , ''
+    ) AS ACTIVE_ADDRESS,
+
+    /* === TERMED_ADDRESS: build ONLY from S — NO country; no plus-four === */
+    COALESCE(
+      RTRIM(
+        NVL2(NULLIF(TRIM(S.ADRS_LINE_1_TXT), ''), TRIM(S.ADRS_LINE_1_TXT) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_LINE_2_TXT), ''), TRIM(S.ADRS_LINE_2_TXT) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_LINE_3_TXT), ''), TRIM(S.ADRS_LINE_3_TXT) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.ADRS_CITY_NM), ''),     TRIM(S.ADRS_CITY_NM)     || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.POSTL_CD_ST_PRVNC_NM), ''), TRIM(S.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+        NVL2(NULLIF(TRIM(S.POSTL_CD), ''), TRIM(S.POSTL_CD), '')
+      , ', ')
+    , ''
+    ) AS TERMED_ADDRESS
+
+  FROM PROV P
+  LEFT JOIN POA ON POA.MSTR_PROV_ID = P.MSTR_PROV_ID
+  LEFT JOIN STNDRDZD_ADRS S ON S.SPS_STNDRDZD_ADRS_ID = POA.SPS_STNDRDZD_ADRS_ID
+  WHERE
+     P.MSTR_PROV_ID =  '1101368077' 
+    AND POA.PADRS_TYPE_CD = '176' 
+
+    /* 2) Flexible comma-list filter (uncomment if you prefer list style)
+       AND ( :type_cd_filter IS NULL
+             OR INSTR(',' || :type_cd_filter || ',', ',' || POA.PADRS_TYPE_CD || ',') > 0
+           )
+    */
+)
+SELECT
+  MSTR_PROV_ID,
+  POA_KEY,
+  PADRS_TYPE_CD,
+  SPS_STNDRDZD_ADRS_ID,
+  PADRS_TRMNTN_DT,
+  PADRS_TRMNTN_RSN_CD,
+  ACTIVE_ADDRESS,
+  TERMED_ADDRESS
+FROM addr
+WHERE
+  /* === Address contains logic (case-insensitive, partial, across both built strings) === */
+  (
+    :addr_contains IS NULL
+    OR UPPER(ACTIVE_ADDRESS) LIKE '%' || UPPER('2296 Opitz Blvd,Suite 110 & 120,,Woodbridge,VA,UNITED STATES,22191') || '%'
+    OR UPPER(TERMED_ADDRESS) LIKE '%' || UPPER('12070 Old Line Ctr, Ste 205, Waldorf, MD, 20602') || '%'
+  )
+ORDER BY PADRS_TYPE_CD, POA_KEY;
