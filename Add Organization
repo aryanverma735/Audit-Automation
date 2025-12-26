@@ -1,4 +1,5 @@
- WITH base AS (
+
+WITH base AS (
     SELECT
         L.MSTR_PROV_ID,
         L.NPI,
@@ -9,112 +10,110 @@
         L.PROV_ORG_FED_TAX_ID,
         NW.RGNL_NTWK_ID,
         M_DIR.PRMRY_PADRS_IND,
- 
 
-/* === Concatenated address (prefers S_REL, falls back to S_DIR) === */
-RTRIM(
-    /* Line 1 */
-    NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_LINE_1_TXT, S_DIR.ADRS_LINE_1_TXT)), ''),
-         TRIM(COALESCE(S_REL.ADRS_LINE_1_TXT, S_DIR.ADRS_LINE_1_TXT)) || ', ',
-         ''
-    ) ||
+        /* === Concatenated address (prefers S_REL, falls back to S_DIR) === */
+        RTRIM(
+            /* Line 1 */
+            NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_LINE_1_TXT, S_DIR.ADRS_LINE_1_TXT)), ''),
+                 TRIM(COALESCE(S_REL.ADRS_LINE_1_TXT, S_DIR.ADRS_LINE_1_TXT)) || ', ',
+                 ''
+            ) ||
 
-    /* Line 2 */
-    NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_LINE_2_TXT, S_DIR.ADRS_LINE_2_TXT)), ''),
-         TRIM(COALESCE(S_REL.ADRS_LINE_2_TXT, S_DIR.ADRS_LINE_2_TXT)) || ', ',
-         ''
-    ) ||
+            /* Line 2 */
+            NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_LINE_2_TXT, S_DIR.ADRS_LINE_2_TXT)), ''),
+                 TRIM(COALESCE(S_REL.ADRS_LINE_2_TXT, S_DIR.ADRS_LINE_2_TXT)) || ', ',
+                 ''
+            ) ||
 
-    /* Line 3 */
-    NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_LINE_3_TXT, S_DIR.ADRS_LINE_3_TXT)), ''),
-         TRIM(COALESCE(S_REL.ADRS_LINE_3_TXT, S_DIR.ADRS_LINE_3_TXT)) || ', ',
-         ''
-    ) ||
+            /* Line 3 */
+            NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_LINE_3_TXT, S_DIR.ADRS_LINE_3_TXT)), ''),
+                 TRIM(COALESCE(S_REL.ADRS_LINE_3_TXT, S_DIR.ADRS_LINE_3_TXT)) || ', ',
+                 ''
+            ) ||
 
-    /* City */
-    NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_CITY_NM, S_DIR.ADRS_CITY_NM)), ''),
-         TRIM(COALESCE(S_REL.ADRS_CITY_NM, S_DIR.ADRS_CITY_NM)) || ', ',
-         ''
-    ) ||
+            /* City */
+            NVL2(NULLIF(TRIM(COALESCE(S_REL.ADRS_CITY_NM, S_DIR.ADRS_CITY_NM)), ''),
+                 TRIM(COALESCE(S_REL.ADRS_CITY_NM, S_DIR.ADRS_CITY_NM)) || ', ',
+                 ''
+            ) ||
 
-    /* County */
-    NVL2(NULLIF(TRIM(COALESCE(S_REL.CNTY_NM, S_DIR.CNTY_NM)), ''),
-         TRIM(COALESCE(S_REL.CNTY_NM, S_DIR.CNTY_NM)) || ', ',
-         ''
-    ) ||
+            /* County */
+            NVL2(NULLIF(TRIM(COALESCE(S_REL.CNTY_NM, S_DIR.CNTY_NM)), ''),
+                 TRIM(COALESCE(S_REL.CNTY_NM, S_DIR.CNTY_NM)) || ', ',
+                 ''
+            ) ||
 
-    /* State / Province */
-    NVL2(NULLIF(TRIM(COALESCE(S_REL.POSTL_CD_ST_PRVNC_NM, S_DIR.POSTL_CD_ST_PRVNC_NM)), ''),
-         TRIM(COALESCE(S_REL.POSTL_CD_ST_PRVNC_NM, S_DIR.POSTL_CD_ST_PRVNC_NM)) || ', ',
-         ''
-    ) ||
-    
-    /* Postal Code with optional Plus-Four */
-    CASE
-        WHEN NULLIF(TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD)), '') IS NOT NULL
-             AND NULLIF(TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR)), '') IS NOT NULL
-            THEN TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD)) || '-' ||
-                 TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR))
-        WHEN NULLIF(TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD)), '') IS NOT NULL
-            THEN TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD))
-        WHEN NULLIF(TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR)), '') IS NOT NULL
-            THEN TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR))
-        ELSE NULL
-    END
-, ' ,') AS FULL_ADDRESS,
+            /* State / Province */
+            NVL2(NULLIF(TRIM(COALESCE(S_REL.POSTL_CD_ST_PRVNC_NM, S_DIR.POSTL_CD_ST_PRVNC_NM)), ''),
+                 TRIM(COALESCE(S_REL.POSTL_CD_ST_PRVNC_NM, S_DIR.POSTL_CD_ST_PRVNC_NM)) || ', ',
+                 ''
+            ) ||
 
-/* === Remit Address (built from RRS.* in same style) === */
-RTRIM(
-    /* Line 1 */
-    NVL2(NULLIF(TRIM(RRS.ADRS_LINE_1_TXT), ''),
-         TRIM(RRS.ADRS_LINE_1_TXT) || ', ',
-         ''
-    ) ||
+            /* Postal Code with optional Plus-Four */
+            CASE
+                WHEN NULLIF(TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD)), '') IS NOT NULL
+                     AND NULLIF(TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR)), '') IS NOT NULL
+                    THEN TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD)) || '-' ||
+                         TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR))
+                WHEN NULLIF(TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD)), '') IS NOT NULL
+                    THEN TRIM(COALESCE(S_REL.POSTL_CD, S_DIR.POSTL_CD))
+                WHEN NULLIF(TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR)), '') IS NOT NULL
+                    THEN TRIM(COALESCE(S_REL.POSTL_CD_PLUS_FOUR, S_DIR.POSTL_CD_PLUS_FOUR))
+                ELSE NULL
+            END
+        , ' ,') AS FULL_ADDRESS,
 
-    /* Line 2 */
-    NVL2(NULLIF(TRIM(RRS.ADRS_LINE_2_TXT), ''),
-         TRIM(RRS.ADRS_LINE_2_TXT) || ', ',
-         ''
-    ) ||
+        /* === Remit Address (built from RRS.* in same style) === */
+        RTRIM(
+            /* Line 1 */
+            NVL2(NULLIF(TRIM(RRS.ADRS_LINE_1_TXT), ''),
+                 TRIM(RRS.ADRS_LINE_1_TXT) || ', ',
+                 ''
+            ) ||
 
-    /* Line 3 */
-    NVL2(NULLIF(TRIM(RRS.ADRS_LINE_3_TXT), ''),
-         TRIM(RRS.ADRS_LINE_3_TXT) || ', ',
-         ''
-    ) ||
+            /* Line 2 */
+            NVL2(NULLIF(TRIM(RRS.ADRS_LINE_2_TXT), ''),
+                 TRIM(RRS.ADRS_LINE_2_TXT) || ', ',
+                 ''
+            ) ||
 
-    /* City */
-    NVL2(NULLIF(TRIM(RRS.ADRS_CITY_NM), ''),
-         TRIM(RRS.ADRS_CITY_NM) || ', ',
-         ''
-    ) ||
+            /* Line 3 */
+            NVL2(NULLIF(TRIM(RRS.ADRS_LINE_3_TXT), ''),
+                 TRIM(RRS.ADRS_LINE_3_TXT) || ', ',
+                 ''
+            ) ||
 
-    /* County */
-    NVL2(NULLIF(TRIM(RRS.CNTY_NM), ''),
-         TRIM(RRS.CNTY_NM) || ', ',
-         ''
-    ) ||
+            /* City */
+            NVL2(NULLIF(TRIM(RRS.ADRS_CITY_NM), ''),
+                 TRIM(RRS.ADRS_CITY_NM) || ', ',
+                 ''
+            ) ||
 
-    /* State / Province */
-    NVL2(NULLIF(TRIM(RRS.POSTL_CD_ST_PRVNC_NM), ''),
-         TRIM(RRS.POSTL_CD_ST_PRVNC_NM) || ', ',
-         ''
-    ) ||
+            /* County */
+            NVL2(NULLIF(TRIM(RRS.CNTY_NM), ''),
+                 TRIM(RRS.CNTY_NM) || ', ',
+                 ''
+            ) ||
 
-    /* Postal Code with optional Plus-Four */
-    CASE
-        WHEN NULLIF(TRIM(RRS.POSTL_CD), '') IS NOT NULL
-             AND NULLIF(TRIM(RRS.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
-            THEN TRIM(RRS.POSTL_CD) || '-' || TRIM(RRS.POSTL_CD_PLUS_FOUR)
-        WHEN NULLIF(TRIM(RRS.POSTL_CD), '') IS NOT NULL
-            THEN TRIM(RRS.POSTL_CD)
-        WHEN NULLIF(TRIM(RRS.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
-            THEN TRIM(RRS.POSTL_CD_PLUS_FOUR)
-        ELSE NULL
-    END
-, ' ,') AS REMIT_ADDRESS,
+            /* State / Province */
+            NVL2(NULLIF(TRIM(RRS.POSTL_CD_ST_PRVNC_NM), ''),
+                 TRIM(RRS.POSTL_CD_ST_PRVNC_NM) || ', ',
+                 ''
+            ) ||
 
- 
+            /* Postal Code with optional Plus-Four */
+            CASE
+                WHEN NULLIF(TRIM(RRS.POSTL_CD), '') IS NOT NULL
+                     AND NULLIF(TRIM(RRS.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+                    THEN TRIM(RRS.POSTL_CD) || '-' || TRIM(RRS.POSTL_CD_PLUS_FOUR)
+                WHEN NULLIF(TRIM(RRS.POSTL_CD), '') IS NOT NULL
+                    THEN TRIM(RRS.POSTL_CD)
+                WHEN NULLIF(TRIM(RRS.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+                    THEN TRIM(RRS.POSTL_CD_PLUS_FOUR)
+                ELSE NULL
+            END
+        , ' ,') AS REMIT_ADDRESS,
+
         N.POA_NTWK_EFCTV_DT,
         N.MAX_MBR_CNT,
         N.DIR_DSPLY_IND,
@@ -125,34 +124,29 @@ RTRIM(
         NN.CP_TYPE_CD AS ACCEPTING_NEW_PATIENTS,
         PR.RMTNC_RLTNSHP_TYPE_CD,
         PR.RMTNC_ID,
-        UPPER(RR.RMTNC_NM),
+        UPPER(RR.RMTNC_NM) AS RMTNC_NM_UPPER,
         RR.SPS_STNDRDZD_ADRS_ID,
- 
         PC.CNTCT_DLVRY_MCHNSM_TYPE_CD,
         PC.CNTCT_VAL_TXT,
-        CASE WHEN PC.PRMRY_CNTCT_INFO_IND = 'Y' THEN 'Y-Display' ELSE 'N-Supress' END AS PRMRY_CNTCT_INFO_IND,
-        CASE WHEN PC.CNFDNTL_CNTCT_IND = 'N' THEN 'No' ELSE 'Yes' END AS CNFDNTL_CNTCT_IND
- 
+        PC.CNFDNTL_CNTCT_IND,
+        PC.POA_CNTCT_EFCTV_DT,
+        PC.DIR_DSPLY_IND AS CONTACT_DIR_DIS
+
     FROM SPSOWNER.PROV L
     LEFT JOIN SPSOWNER.PROV_ORG_NTWK PON
       ON PON.MSTR_PROV_ID = L.MSTR_PROV_ID
     LEFT JOIN SPSOWNER.NTWK NW
       ON NW.NTWK_KEY = PON.NTWK_KEY
- 
-    /* ---------------------------
-       Address branch A: DIRECT (fallback)
-       --------------------------- */
+
+    /* Address branch A: DIRECT (fallback) */
     LEFT JOIN SPSOWNER.POA M_DIR
       ON M_DIR.MSTR_PROV_ID = L.MSTR_PROV_ID
-    -- Contact Details
     LEFT JOIN POA_CNTCT PC
       ON PC.POA_KEY = M_DIR.POA_KEY
     LEFT JOIN SPSOWNER.STNDRDZD_ADRS S_DIR
       ON S_DIR.SPS_STNDRDZD_ADRS_ID = M_DIR.SPS_STNDRDZD_ADRS_ID
- 
-    /* ---------------------------
-       Address branch B: RELATIONSHIP (preferred)
-       --------------------------- */
+
+    /* Address branch B: RELATIONSHIP (preferred) */
     LEFT JOIN SPSOWNER.POA_NTWK N
       ON N.PROV_ORG_NTWK_KEY = PON.PROV_ORG_NTWK_KEY
     LEFT JOIN POA_NTWK_CP NN
@@ -165,15 +159,14 @@ RTRIM(
       ON M_REL.POA_KEY = K.POA_KEY
     LEFT JOIN SPSOWNER.STNDRDZD_ADRS S_REL
       ON S_REL.SPS_STNDRDZD_ADRS_ID = M_REL.SPS_STNDRDZD_ADRS_ID
- 
-    /* Contact points and specialties (optional) */
+
     LEFT JOIN SPSOWNER.RLTD_PADRS_NTWK_CP PNC
       ON PNC.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY
     LEFT JOIN SPSOWNER.RLTD_PADRS_NTWK_SPCLTY RS
       ON RS.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY
     LEFT JOIN SPSOWNER.PROV_SPCLTY PS
       ON PS.PROV_SPCLTY_KEY = RS.PROV_SPCLTY_KEY
- 
+
     /* Remit address tables */
     LEFT JOIN POA_RMTNC PR
       ON M_DIR.POA_KEY = PR.POA_KEY
@@ -181,7 +174,7 @@ RTRIM(
       ON PR.RMTNC_ID = RR.RMTNC_ID
     LEFT JOIN SPSOWNER.STNDRDZD_ADRS RRS
       ON RR.SPS_STNDRDZD_ADRS_ID = RRS.SPS_STNDRDZD_ADRS_ID
- 
+
     WHERE L.NPI = '1386118305'
       AND L.PROV_ORG_FED_TAX_ID = '843922679'
       AND L.PROV_ORG_NM = '<[Add_Org_Org_Name]>'
@@ -189,21 +182,30 @@ RTRIM(
       AND L.PROV_ORG_SPCLTY_CD = '<[Add_Org_Specialty]>'
       AND NW.RGNL_NTWK_ID = '<[Add_Org_Networks.ByField("Network ID")]>'
       AND N.POA_NTWK_EFCTV_DT = TO_DATE('<[Add_Org_Networks.ByField("Network Effective Date")]>','MM/DD/YYYY')
-      AND  N.MAX_MBR_CNT = '<[Add_Org_Ntwk_Max_Member_Count]>'
-      AND  N.DIR_DSPLY_IND = '<[Add_Org_Ntwk_Directory_Display_Indicator]>'
-      AND  N.MIN_AGE_NBR = '<[Add_Org_Ntwk_Minimum_Age]>'
-      AND  N.MAX_AGE_NBR = '<[Add_Org_Ntwk_Maximum_Age]>'
-      AND  N.PAT_GNDR_CD = '<[Add_Org_Ntwk_Gender]>'
-      AND  NN.CP_TYPE_CD = '<[Add_Org_Ntwk_Accepting_Patient_Indicator]>'
-      AND  PC.CNTCT_DLVRY_MCHNSM_TYPE_CD = '<[Add_Org_Contact_Type]>'
-      AND  PC.CNTCT_VAL_TXT = '<[Add_Org_Contact_Value]>'
-      AND  PC.CNFDNTL_CNTCT_IND = '<[Add_Org_Confidential_Contact_Inidcator]>'
+      AND N.MAX_MBR_CNT = '<[Add_Org_Ntwk_Max_Member_Count]>'
+      AND N.DIR_DSPLY_IND = '<[Add_Org_Ntwk_Directory_Display_Indicator]>'
+      AND N.MIN_AGE_NBR = '<[Add_Org_Ntwk_Minimum_Age]>'
+      AND N.MAX_AGE_NBR = '<[Add_Org_Ntwk_Maximum_Age]>'
+      AND N.PAT_GNDR_CD = '<[Add_Org_Ntwk_Gender]>'
+      AND NN.CP_TYPE_CD = '<[Add_Org_Ntwk_Accepting_Patient_Indicator]>'
+      AND PC.CNTCT_DLVRY_MCHNSM_TYPE_CD = '<[Add_Org_Contact_Type]>'
+      AND PC.CNTCT_VAL_TXT = '<[Add_Org_Contact_Value]>'
+      AND PC.CNFDNTL_CNTCT_IND = '<[Add_Org_Confidential_Contact_Inidcator]>'
       AND RR.RMTNC_NM = '<[Add_Org_Remit_Check_Name]>'
- 
+
+      -- For Contact Info (hard-coded)
+      AND PC.CNTCT_DLVRY_MCHNSM_TYPE_CD = '165'
+      AND PC.CNTCT_VAL_TXT = '9162582751'
+      AND PC.CNFDNTL_CNTCT_IND = 'N'
+      AND PC.POA_CNTCT_EFCTV_DT = TO_DATE('1/1/2026', 'MM/DD/YYYY')
 )
-SELECT *
+SELECT
+  CASE
+    WHEN COUNT(*) > 0 THEN 'Audit Pass'
+    ELSE 'Audit Fail'
+  END AS AUDIT_STATUS
 FROM base
 WHERE REGEXP_REPLACE(LOWER(base.FULL_ADDRESS), '[[:space:]]+', ' ')
       = REGEXP_REPLACE(LOWER('475 E Avenida De Los Arboles, Ste B, Thousand Oaks, Ventura, CA, 91360-2993'), '[[:space:]]+', ' ')
   AND REGEXP_REPLACE(LOWER(base.REMIT_ADDRESS), '[[:space:]]+', ' ')
-      = REGEXP_REPLACE(LOWER('5825 Kanan Rd, Ste B, Agoura Hills, Los Angeles, CA, 91301-1691'), '[[:space:]]+', ' ')
+      = REGEXP_REPLACE(LOWER('5825 Kanan Rd, Ste B, Agoura Hills, Los Angeles, CA, 91301-1691'), '[[:space:]]+', ' ');
