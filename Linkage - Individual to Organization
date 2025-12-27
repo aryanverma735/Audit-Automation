@@ -1,6 +1,3 @@
-For Linkage:
- 
----RMBs data extraction query.
 Select 
 distinct L_IND.NPI as IND_NPI,
 L_IND.MSTR_PROV_ID as IND_MSTR_PROV_ID,
