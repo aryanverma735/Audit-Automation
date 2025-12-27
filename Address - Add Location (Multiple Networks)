@@ -1,0 +1,153 @@
+
+WITH base AS (
+    SELECT
+        L.MSTR_PROV_ID,
+        L.NPI,
+        L.PROV_ORG_FED_TAX_ID,
+        S_DIR.SPS_STNDRDZD_ADRS_ID,
+        NW.RGNL_NTWK_ID,
+        N.POA_NTWK_EFCTV_DT,
+        K.PRMRY_PADRS_IND,
+        OC.OFC_CHARSTC_TYPE_CD,
+        OC.OFC_CHARSTC_CTGRY_CD,
+        OC.DIR_DSPLY_IND AS OFFICE_HOURS_DIR,
+
+        /* === Remit Address (built from RRS.* in same style) === */
+        RTRIM(
+            /* Line 1 */
+            NVL2(NULLIF(TRIM(RRS.ADRS_LINE_1_TXT), ''),
+                 TRIM(RRS.ADRS_LINE_1_TXT) || ', ',
+                 ''
+            ) ||
+
+            /* Line 2 */
+            NVL2(NULLIF(TRIM(RRS.ADRS_LINE_2_TXT), ''),
+                 TRIM(RRS.ADRS_LINE_2_TXT) || ', ',
+                 ''
+            ) ||
+
+            /* Line 3 */
+            NVL2(NULLIF(TRIM(RRS.ADRS_LINE_3_TXT), ''),
+                 TRIM(RRS.ADRS_LINE_3_TXT) || ', ',
+                 ''
+            ) ||
+
+            /* City */
+            NVL2(NULLIF(TRIM(RRS.ADRS_CITY_NM), ''),
+                 TRIM(RRS.ADRS_CITY_NM) || ', ',
+                 ''
+            ) ||
+
+            /* State / Province */
+            NVL2(NULLIF(TRIM(RRS.POSTL_CD_ST_PRVNC_NM), ''),
+                 TRIM(RRS.POSTL_CD_ST_PRVNC_NM) || ', ',
+                 ''
+            ) ||
+
+            /* Postal Code with optional Plus-Four */
+
+             CASE
+                WHEN NULLIF(TRIM(RRS.POSTL_CD), '') IS NOT NULL
+                THEN TRIM(RRS.POSTL_CD)
+                ELSE NULL
+            END
+        , ' ,') AS REMIT_ADDRESS,
+
+--        NN.POA_NTWK_EFCTV_DT,
+        N.MAX_MBR_CNT,
+        N.DIR_DSPLY_IND,
+        N.MIN_AGE_NBR,
+        N.MAX_AGE_NBR,
+        N.PAT_GNDR_CD,
+        N.DIR_SPRSN_RSN_CD,
+        NN.CP_TYPE_CD AS ACCEPTING_NEW_PATIENTS,
+        PR.RMTNC_RLTNSHP_TYPE_CD,
+        PR.RMTNC_ID,
+        UPPER(RR.RMTNC_NM) AS RMTNC_NM_UPPER,
+        -- CONTACT DETAILS
+        PC.CNTCT_DLVRY_MCHNSM_TYPE_CD,
+        PC.CNTCT_VAL_TXT,
+        PC.CNFDNTL_CNTCT_IND,
+        PC.POA_CNTCT_EFCTV_DT,
+        PC.DIR_DSPLY_IND AS CONTACT_DIR_DIS,
+        PC.PRMRY_CNTCT_INFO_IND
+
+    FROM SPSOWNER.PROV L
+    LEFT JOIN SPSOWNER.PROV_ORG_NTWK PON
+      ON PON.MSTR_PROV_ID = L.MSTR_PROV_ID
+    LEFT JOIN SPSOWNER.NTWK NW
+      ON NW.NTWK_KEY = PON.NTWK_KEY
+
+    /* Address branch A: DIRECT (fallback) */
+    LEFT JOIN SPSOWNER.POA M_DIR
+      ON M_DIR.MSTR_PROV_ID = L.MSTR_PROV_ID
+    LEFT JOIN POA_CNTCT PC
+      ON PC.POA_KEY = M_DIR.POA_KEY
+    LEFT JOIN SPSOWNER.STNDRDZD_ADRS S_DIR
+      ON S_DIR.SPS_STNDRDZD_ADRS_ID = M_DIR.SPS_STNDRDZD_ADRS_ID
+
+    /* Address branch B: RELATIONSHIP (preferred) */
+    LEFT JOIN SPSOWNER.POA_NTWK N
+      ON N.PROV_ORG_NTWK_KEY = PON.PROV_ORG_NTWK_KEY
+    LEFT JOIN POA_NTWK_CP NN
+      ON NN.POA_NTWK_KEY = N.POA_NTWK_KEY
+    LEFT JOIN SPSOWNER.RLTD_PADRS_NTWK J
+      ON J.POA_NTWK_KEY = N.POA_NTWK_KEY
+    LEFT JOIN SPSOWNER.RLTD_PADRS K
+      ON K.RLTD_PADRS_KEY = J.RLTD_PADRS_KEY
+    LEFT JOIN SPSOWNER.POA M_REL
+      ON M_REL.POA_KEY = K.POA_KEY
+    LEFT JOIN SPSOWNER.STNDRDZD_ADRS S_REL
+      ON S_REL.SPS_STNDRDZD_ADRS_ID = M_REL.SPS_STNDRDZD_ADRS_ID
+
+    LEFT JOIN SPSOWNER.RLTD_PADRS_NTWK_CP PNC
+      ON PNC.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY
+    LEFT JOIN SPSOWNER.RLTD_PADRS_NTWK_SPCLTY RS
+      ON RS.RLTD_PADRS_NTWK_KEY = J.RLTD_PADRS_NTWK_KEY
+    LEFT JOIN SPSOWNER.PROV_SPCLTY PS
+      ON PS.PROV_SPCLTY_KEY = RS.PROV_SPCLTY_KEY
+
+    /* Remit address tables */
+    LEFT JOIN POA_RMTNC PR
+      ON M_DIR.POA_KEY = PR.POA_KEY
+    LEFT JOIN SPSOWNER.RMTNC RR
+      ON PR.RMTNC_ID = RR.RMTNC_ID
+    LEFT JOIN SPSOWNER.STNDRDZD_ADRS RRS
+      ON RR.SPS_STNDRDZD_ADRS_ID = RRS.SPS_STNDRDZD_ADRS_ID
+    LEFT JOIN POFC_CHARSTC OC
+      ON OC.POA_KEY = M_DIR.POA_KEY
+
+    WHERE L.MSTR_PROV_ID = '1104635688'
+      AND S_DIR.SPS_STNDRDZD_ADRS_ID = '1075892'
+      AND NW.RGNL_NTWK_ID IN ('14', '19', '20', '30', '34', '42', '69', 'HE', 'HT', 'OE', 'OL', 'OT', 'VACHRNCSNP01', 'VAERSDCSNP01', 'VANTWKFDSC01', 'VANTWKHMO101', 'VANTWKPSNP01', 'VANTWKSNP001', 'VANWTKPPO101')
+      AND N.POA_NTWK_EFCTV_DT = TO_DATE('11/15/2025','MM/DD/YYYY')
+      AND N.MAX_MBR_CNT = '0'
+      AND N.DIR_DSPLY_IND = 'Y'
+      AND N.MIN_AGE_NBR = '0'
+      AND N.MAX_AGE_NBR = '999'
+      AND N.PAT_GNDR_CD = '8002'
+      AND NN.CP_TYPE_CD = '1936'
+      AND PC.CNTCT_DLVRY_MCHNSM_TYPE_CD = '<[Add_Org_Contact_Type]>'
+      AND PC.CNTCT_VAL_TXT = '<[Add_Org_Contact_Value]>'
+      AND PC.CNFDNTL_CNTCT_IND = '<[Add_Org_Confidential_Contact_Inidcator]>'
+      AND OC.OFC_CHARSTC_TYPE_CD = ''
+      AND OC.OFC_CHARSTC_CTGRY_CD = ''
+      AND OC.DIR_DSPLY_IND = ''
+
+      -- For Contact Info (hard-coded)
+      AND PC.CNTCT_DLVRY_MCHNSM_TYPE_CD = '165'
+      AND PC.CNTCT_VAL_TXT = '9162582751'
+      AND PC.CNFDNTL_CNTCT_IND = 'N'
+      AND PC.PRMRY_CNTCT_INFO_IND = ''
+)
+SELECT 
+DISTINCT(base.RGNL_NTWK_ID),
+  CASE
+    WHEN COUNT(*) > 0 THEN 'Audit Pass'
+    ELSE 'Audit Fail'
+  END AS AUDIT_STATUS
+--  COUNT(DISTINCT(base.RGNL_NTWK_ID))
+FROM base
+WHERE REGEXP_REPLACE(LOWER(base.REMIT_ADDRESS), '[[:space:]]+', ' ')
+     = REGEXP_REPLACE(LOWER('497 Alabama Dr, Herndon, VA, 20170'), '[[:space:]]+', ' ')
+GROUP BY base.RGNL_NTWK_ID
