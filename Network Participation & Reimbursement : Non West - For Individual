@@ -1,5 +1,5 @@
 WITH params AS (
-  SELECT '<[Ntwk_Rmbrs_Only_Ind_Practice_Address]>' AS full_addr FROM dual
+  SELECT '870 Seven Hills Dr, Ste 103, Henderson, NV, 89052' AS full_addr FROM dual
 ),
 addr_filter AS (
   SELECT 
@@ -13,6 +13,7 @@ base AS (
     K.MSTR_PROV_ID              AS ORG_EID,
     M.PADRS_TYPE_CD             AS PADRS_TYPE_CD,
 
+    /* Build ADDRESS_FULL once (same logic as your original) */
     (
       SELECT LISTAGG(val, ', ') WITHIN GROUP (ORDER BY pos)
       FROM (
@@ -47,15 +48,20 @@ base AS (
     J.RLTD_PADRS_NTWK_TRMNTN_RSN_CD,
 
     PNC.CP_TYPE_CD AS ACPTG_PTNT_IND,
-    N.MAX_MBR_CNT,
+--    N.MAX_MBR_CNT,
     N.POA_NTWK_TRMNTN_RSN_CD,
+    J.MAX_MBR_CNT,
     J.DIR_DSPLY_IND,
     J.MIN_AGE_NBR,
     J.MAX_AGE_NBR,
     J.PAT_GNDR_CD,
     J.DIR_SPRSN_RSN_CD,
     J.ROLE_CD,
-    PS.SPCLTY_CD
+    PS.SPCLTY_CD,
+    RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT,
+    RS.RLTD_PADRS_NW_SPCLTY_TRM_DT,
+    RS.PRMRY_SPCLTY_IND,
+    PN.SPCLTY_NM
 
   FROM SPSOWNER.RLTD_PADRS_NTWK J
   JOIN SPSOWNER.RLTD_PADRS K 
@@ -81,23 +87,36 @@ base AS (
     ON J.RLTD_PADRS_NTWK_KEY = RS.RLTD_PADRS_NTWK_KEY
   JOIN PROV_SPCLTY PS
     ON RS.PROV_SPCLTY_KEY = PS.PROV_SPCLTY_KEY
+  JOIN BOT_PRCG_SPCLTY_XREF PN
+    ON PS.SPCLTY_CD = PN.SPCLTY_CD
+  
   WHERE 
-    L_IND.MSTR_PROV_ID = '<[Ntwk_Rmbrs_Only_Ind_Individual_EID]>'
-    AND NW.RGNL_NTWK_ID = '<[CurrentRow2.ByField("Network Id")]>'
-    AND PNC.CP_TYPE_CD = '<[Ntwk_Rmbrs_Only_Ind_Accepting_Patient_Type]>'
-    AND N.MAX_MBR_CNT = '<[Ntwk_Rmbrs_Only_Ind_Max_Member_Count]>'
-    AND J.RLTD_PADRS_NTWK_EFCTV_DT = TO_DATE('<[Ntwk_Rmbrs_Only_Ind_Network_Specialty_Effective_Date]>','MM/DD/YYYY')
-    AND J.DIR_DSPLY_IND = '<[Ntwk_Rmbrs_Only_Ind_Directory_Display]>'
-    AND J.MIN_AGE_NBR = '<[Ntwk_Rmbrs_Only_Ind_Minimum_Age]>'
-    AND J.MAX_AGE_NBR = '<[Ntwk_Rmbrs_Only_Ind_Maximum_Age]>'
-    AND J.PAT_GNDR_CD = '<[Ntwk_Rmbrs_Only_Ind_Gender]>'
-    AND J.ROLE_CD = '<[Ntwk_Rmbrs_Only_Ind_Role_Code]>'
+    L_IND.MSTR_PROV_ID = '1101373332'
+    AND NW.RGNL_NTWK_ID IN ('NVNTWKKIDS01', 'NVNTWKFAMC01', 'NVNTWKCAID01')
+    AND PNC.CP_TYPE_CD = '1936'
+    AND J.MAX_MBR_CNT = '99999'                       
+-- kept as string to match your working query
+    AND J.RLTD_PADRS_NTWK_EFCTV_DT = TO_DATE('01/20/2024','MM/DD/YYYY')
+    AND J.DIR_DSPLY_IND = 'Y'
+    AND J.MIN_AGE_NBR = '15'
+    AND J.MAX_AGE_NBR = '45'
+    AND J.PAT_GNDR_CD = '8001'
+    AND J.ROLE_CD = 'S'
+--    AND RS.RLTD_PADRS_NW_SPCLTY_TRM_DT = TO_DATE('12/31/9999','MM/DD/YYYY')
+    AND PN.SPCLTY_NM = 'Nurse Midwife' 
+    AND RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT = TO_DATE('01/20/2024','MM/DD/YYYY')
+    AND RS.PRMRY_SPCLTY_IND = 'Y'
+    
+--    
 )
 SELECT
-  CASE WHEN cnt > 0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS audit_result
-FROM (
-  SELECT COUNT(*) AS cnt
-  FROM base b
-  CROSS JOIN addr_filter p
-  WHERE REGEXP_REPLACE(UPPER(b.ADDRESS_FULL), '[^A-Z0-9]+', '') = p.full_addr_norm
-)
+    RGNL_NTWK_ID,
+    CASE WHEN COUNT(*) > 0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS "audit_result"
+--  IND_MSTR_PROV_ID, ORG_EID, PADRS_TYPE_CD, ADDRESS_FULL, RGNL_NTWK_ID, RLTD_PADRS_NTWK_EFCTV_DT, NTWK_TRMNTN_RSN_CD, RLTD_PADRS_NTWK_TRMNTN_DT, RLTD_PADRS_NTWK_TRMNTN_RSN_CD,
+--  ACPTG_PTNT_IND, MAX_MBR_CNT, POA_NTWK_TRMNTN_RSN_CD,
+--  DIR_DSPLY_IND, MIN_AGE_NBR, MAX_AGE_NBR, PAT_GNDR_CD, DIR_SPRSN_RSN_CD, ROLE_CD, SPCLTY_CD,RLTD_PADRS_NW_SPCLTY_EFCTV_DT, 
+--  RLTD_PADRS_NW_SPCLTY_TRM_DT, PRMRY_SPCLTY_IND, SPCLTY_NM
+FROM base b
+CROSS JOIN addr_filter p
+WHERE REGEXP_REPLACE(UPPER(b.ADDRESS_FULL), '[^A-Z0-9]+', '') = p.full_addr_norm
+GROUP BY RGNL_NTWK_ID
