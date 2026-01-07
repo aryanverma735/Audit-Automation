@@ -183,6 +183,7 @@ WITH base AS (
       AND PR.POA_RMTNC_EFCTV_DT = TO_DATE('', 'MM/DD/YYYY')
       AND PR.RMTNC_RLTNSHP_TYPE_CD = ''
       AND RR.PAYMNT_TYPE_CD = ''
+-- For Both Electronic & Paper - "B"
       AND RR.RMTNC_MTHD_CD = ''
 )
 SELECT
