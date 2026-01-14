@@ -1,0 +1,14 @@
+WITH p AS (
+  SELECT
+    COALESCE(PROV_LAST_NM, '') || ',' || COALESCE(PROV_FRST_NM, '') AS FULL_NAME,
+    MSTR_PROV_ID
+  FROM PROV
+)
+SELECT 
+         CASE
+         WHEN COUNT(*) > 0 THEN 'Audit Pass'
+         ELSE 'Audit Fail'
+       END AS audit_result
+FROM p
+WHERE MSTR_PROV_ID = '1101981584'
+  AND UPPER(FULL_NAME) = UPPER('Reed Calsadillas,Christina');
