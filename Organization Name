@@ -1,0 +1,11 @@
+WITH CTE AS
+(
+SELECT *
+FROM PROV P
+WHERE P.MSTR_PROV_ID = '<[Org_Nm_DBA_Nm_EID]>'
+AND UPPER(P.PROV_ORG_NM) = UPPER('<[Org_Nm_DBA_Nm_Organization_Name]>')
+)
+SELECT 
+CASE WHEN COUNT(*) > 0 THEN 'Audit Pass' ELSE 'Audit Fail' 
+END AS audit_result
+FROM CTE
