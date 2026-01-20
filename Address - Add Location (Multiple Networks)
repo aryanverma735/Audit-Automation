@@ -104,6 +104,7 @@ WITH base AS (
 
     WHERE L.MSTR_PROV_ID = '1103643348'
       AND S_DIR.SPS_STNDRDZD_ADRS_ID = '1330674'
+-- For MO, WI, KY & OH market even if the Primary indicator is given as "Yes" we will consider it as "No"
       AND M_DIR.PRMRY_PADRS_IND = 'N'    
 --Contact Info (hard-coded)
 --Directory Ph No.- "157", Directory Email Address - "8007", Fax Phone Number - "160"
