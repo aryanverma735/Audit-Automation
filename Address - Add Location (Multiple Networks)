@@ -10,6 +10,7 @@ WITH base AS (
         M_DIR.PRMRY_PADRS_IND,
         OC.OFC_CHARSTC_TYPE_CD,
         OC.OFC_CHARSTC_CTGRY_CD,
+        OC.VAL_TXT,
         OC.DIR_DSPLY_IND AS OFFICE_HOURS_DIR,
         /* === Remit Address (built from RRS.* in same style) === */
         RTRIM(
@@ -108,15 +109,21 @@ WITH base AS (
       AND M_DIR.PRMRY_PADRS_IND = 'N'    
 --Contact Info (hard-coded)
 --Directory Ph No.- "157", Directory Email Address - "8007", Fax Phone Number - "160"
-      AND PC.CNTCT_DLVRY_MCHNSM_TYPE_CD IN ('157', '8007')
-      AND PC.CNTCT_VAL_TXT IN ('5629991449','info@khatyaalbanolmft.com')
-      AND PC.CNFDNTL_CNTCT_IND = 'N'
-      AND PC.PRMRY_CNTCT_INFO_IND IN ('N', 'Y')
+      AND (PC.CNTCT_DLVRY_MCHNSM_TYPE_CD, PC.CNTCT_VAL_TXT, PC.CNFDNTL_CNTCT_IND, PC.PRMRY_CNTCT_INFO_IND ) IN (
+          ('157', '5629991449', 'N', 'Y'),
+          ('8007', 'info@khatyaalbanolmft.com', 'N', 'N')
+          )
 -- Office Characteristics
---      AND OC.OFC_CHARSTC_TYPE_CD = ''
---      AND OC.OFC_CHARSTC_CTGRY_CD = ''
---      AND OC.DIR_DSPLY_IND = ''
+      AND OC.OFC_CHARSTC_TYPE_CD = ''
+      AND OC.OFC_CHARSTC_CTGRY_CD = ''
+      AND OC.DIR_DSPLY_IND = ''
 -- Network Filters
+      -- If the effective date is different for each network.
+--      AND(RGNL_NTWK_ID, POA_NTWK_EFCTV_DT) IN (
+--      ('NC03',  TO_DATE('01/01/1901','MM/DD/YYYY')),
+--      ('ANTMNP', TO_DATE('01/01/1901','MM/DD/YYYY'))
+--      )
+      -- If the effective date is same for each network.
       AND NW.RGNL_NTWK_ID IN ('NC03', 'ANTMNP')
       AND N.POA_NTWK_EFCTV_DT = TO_DATE('01/01/1901','MM/DD/YYYY')
       AND N.MAX_MBR_CNT = '0'
@@ -124,14 +131,29 @@ WITH base AS (
       AND N.MIN_AGE_NBR = '0'
       AND N.MAX_AGE_NBR = '999'
       AND N.PAT_GNDR_CD = '8002'
-      AND NN.CP_TYPE_CD = '1936' -- Accepting Patient Indicator-"1936" Not Accepting New Patients-"1937"
---OFFICE HOURS FILTER
---FRIDAY-"8004"
---      AND HR.DAY_OF_THE_WEEK_CD IN ('')
---      AND HR.OFC_STRT_1_TM IN ('')
---      AND HR.OFC_END_1_TM IN ('')
+-- Accepting Patient Indicator-"1936" Not Accepting New Patients-"1937"
+      AND NN.CP_TYPE_CD = '1936' 
+--OFFICE HOURS FILTER (Monday-"8000", Tuesday-"8001", Wednesday-"8002", Thursday-"8003", Friday-"8004", Saturday-"8005", Sunday-"8006"
+      AND (
+            CASE HR.DAY_OF_THE_WEEK_CD
+            WHEN '8000' THEN 'Monday'
+            WHEN '8001' THEN 'Tuesday'
+            WHEN '8002' THEN 'Wednesday'
+            WHEN '8003' THEN 'Thursday'
+            WHEN '8004' THEN 'Friday'
+            WHEN '8005' THEN 'Saturday'
+            WHEN '8006' THEN 'Sunday'
+            ELSE 'Unknown'
+            END,
+       HR.OFC_STRT_1_TM, HR.OFC_END_1_TM) IN (
+      ('Tuesday', '10:00 AM', '6:00 PM'),  -- Tuesday 10–6
+      ('Wednesday', '10:00 AM', '6:00 PM'),  -- Wednesday 10–6
+      ('Thursday', '10:00 AM', '6:00 PM'),  -- Thursday 10–6
+      ('Friday', '10:00 AM', '1:00 PM')   -- Friday 10–1
+      )
 )
-SELECT RGNL_NTWK_ID, POA_NTWK_EFCTV_DT, CNTCT_VAL_TXT, PRMRY_CNTCT_INFO_IND, CNTCT_DLVRY_MCHNSM_TYPE_CD,
+SELECT 
+RGNL_NTWK_ID, 
   CASE
     WHEN COUNT(*) > 0 THEN 'Audit Pass'
     ELSE 'Audit Fail'
@@ -139,4 +161,4 @@ SELECT RGNL_NTWK_ID, POA_NTWK_EFCTV_DT, CNTCT_VAL_TXT, PRMRY_CNTCT_INFO_IND, CNT
 FROM base
 WHERE REGEXP_REPLACE(LOWER(base.REMIT_ADDRESS), '[[:space:]]+', ' ')
      = REGEXP_REPLACE(LOWER('3620 Long Beach Blvd, Ste C9, Long Beach, CA, 90807'), '[[:space:]]+', ' ')
-GROUP BY RGNL_NTWK_ID, POA_NTWK_EFCTV_DT, CNTCT_VAL_TXT, PRMRY_CNTCT_INFO_IND, CNTCT_DLVRY_MCHNSM_TYPE_CD;
+GROUP BY RGNL_NTWK_ID
