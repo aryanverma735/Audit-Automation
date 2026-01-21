@@ -12,47 +12,27 @@ WITH base AS (
         OC.OFC_CHARSTC_CTGRY_CD,
         OC.VAL_TXT,
         OC.DIR_DSPLY_IND AS OFFICE_HOURS_DIR,
+        CD.CD_VAL_NM,
+        CDD.SHRT_DESC_TXT,
+        CDA.CD_VAL_NM AS WEEK_DAY,
         /* === Remit Address (built from RRS.* in same style) === */
         RTRIM(
-            /* Line 1 */
             NVL2(NULLIF(TRIM(RRS.ADRS_LINE_1_TXT), ''),
-                 TRIM(RRS.ADRS_LINE_1_TXT) || ', ',
-                 ''
-            ) ||
-
-            /* Line 2 */
+                 TRIM(RRS.ADRS_LINE_1_TXT) || ', ', '') ||
             NVL2(NULLIF(TRIM(RRS.ADRS_LINE_2_TXT), ''),
-                 TRIM(RRS.ADRS_LINE_2_TXT) || ', ',
-                 ''
-            ) ||
-
-            /* Line 3 */
+                 TRIM(RRS.ADRS_LINE_2_TXT) || ', ', '') ||
             NVL2(NULLIF(TRIM(RRS.ADRS_LINE_3_TXT), ''),
-                 TRIM(RRS.ADRS_LINE_3_TXT) || ', ',
-                 ''
-            ) ||
-
-            /* City */
+                 TRIM(RRS.ADRS_LINE_3_TXT) || ', ', '') ||
             NVL2(NULLIF(TRIM(RRS.ADRS_CITY_NM), ''),
-                 TRIM(RRS.ADRS_CITY_NM) || ', ',
-                 ''
-            ) ||
-
-            /* State / Province */
+                 TRIM(RRS.ADRS_CITY_NM) || ', ', '') ||
             NVL2(NULLIF(TRIM(RRS.POSTL_CD_ST_PRVNC_NM), ''),
-                 TRIM(RRS.POSTL_CD_ST_PRVNC_NM) || ', ',
-                 ''
-            ) ||
-
-            /* Postal Code with optional Plus-Four */
-
-             CASE
+                 TRIM(RRS.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+            CASE
                 WHEN NULLIF(TRIM(RRS.POSTL_CD), '') IS NOT NULL
                 THEN TRIM(RRS.POSTL_CD)
                 ELSE NULL
             END
         , ' ,') AS REMIT_ADDRESS,
---        NN.POA_NTWK_EFCTV_DT,
         N.MAX_MBR_CNT,
         N.DIR_DSPLY_IND,
         N.MIN_AGE_NBR,
@@ -63,19 +43,33 @@ WITH base AS (
         PR.RMTNC_RLTNSHP_TYPE_CD,
         PR.RMTNC_ID,
         UPPER(RR.RMTNC_NM) AS RMTNC_NM_UPPER,
-        -- CONTACT DETAILS
+        /* CONTACT DETAILS */
         PC.CNTCT_DLVRY_MCHNSM_TYPE_CD,
+        CASE PC.CNTCT_DLVRY_MCHNSM_TYPE_CD
+            WHEN '157'  THEN 'Directory Phone Number'
+            WHEN '8007' THEN 'Email address'
+            WHEN '160'  THEN 'Fax Phone Number'
+            ELSE 'Unknown'
+        END AS CNTCT_TYPE_DESC,
         PC.CNTCT_VAL_TXT,
         PC.CNFDNTL_CNTCT_IND,
         PC.POA_CNTCT_EFCTV_DT,
         PC.DIR_DSPLY_IND AS CONTACT_DIR_DIS,
         PC.PRMRY_CNTCT_INFO_IND,
-        HR.DAY_OF_THE_WEEK_CD,
+        /* OFFICE HOURS label */
+        CASE HR.DAY_OF_THE_WEEK_CD
+            WHEN '8017' THEN 'Monday'
+            WHEN '8018' THEN 'Tuesday'
+            WHEN '8002' THEN 'Wednesday'
+            WHEN '8003' THEN 'Thursday'
+            WHEN '8004' THEN 'Friday'
+            WHEN '8005' THEN 'Saturday'
+            WHEN '8006' THEN 'Sunday'
+            ELSE 'Unknown'
+        END AS DAY_OF_WEEK_NM,
         HR.TM_ZONE_CD,
         HR.OFC_STRT_1_TM,
         HR.OFC_END_1_TM
-        
-
     FROM SPSOWNER.PROV L
     JOIN SPSOWNER.POA M_DIR
       ON M_DIR.MSTR_PROV_ID = L.MSTR_PROV_ID
@@ -102,28 +96,32 @@ WITH base AS (
       ON OC.POA_KEY = M_DIR.POA_KEY
     JOIN POFC_HOURS HR
       ON M_DIR.POA_KEY = HR.POA_KEY
+    JOIN CD_VAL CD
+      ON CD.CD_VAL_CD = OC.OFC_CHARSTC_CTGRY_CD
+    JOIN CD_VAL CDD
+      ON CDD.CD_VAL_CD = OC.OFC_CHARSTC_TYPE_CD   
+    JOIN CD_VAL CDA
+      ON CDA.CD_VAL_CD = HR.DAY_OF_THE_WEEK_CD
 
     WHERE L.MSTR_PROV_ID = '1103643348'
       AND S_DIR.SPS_STNDRDZD_ADRS_ID = '1330674'
--- For MO, WI, KY & OH market even if the Primary indicator is given as "Yes" we will consider it as "No"
-      AND M_DIR.PRMRY_PADRS_IND = 'N'    
---Contact Info (hard-coded)
---Directory Ph No.- "157", Directory Email Address - "8007", Fax Phone Number - "160"
-      AND (PC.CNTCT_DLVRY_MCHNSM_TYPE_CD, PC.CNTCT_VAL_TXT, PC.CNFDNTL_CNTCT_IND, PC.PRMRY_CNTCT_INFO_IND ) IN (
-          ('157', '5629991449', 'N', 'Y'),
-          ('8007', 'info@khatyaalbanolmft.com', 'N', 'N')
+      /* For MO, WI, KY & OH market even if Primary indicator is Yes we consider it as No */
+      AND M_DIR.PRMRY_PADRS_IND = 'N'
+      AND (
+            CASE PC.CNTCT_DLVRY_MCHNSM_TYPE_CD
+                WHEN '157'  THEN 'Directory Phone Number'
+                WHEN '8007' THEN 'Email address'
+                WHEN '160'  THEN 'Fax Phone Number'
+                ELSE 'Unknown'
+            END,
+            PC.CNTCT_VAL_TXT,
+            PC.CNFDNTL_CNTCT_IND,
+            PC.PRMRY_CNTCT_INFO_IND
+          ) IN (
+            ('Directory Phone Number', '5629991449', 'N', 'Y'),
+            ('Email address', 'info@khatyaalbanolmft.com', 'N', 'N')
           )
--- Office Characteristics
-      AND OC.OFC_CHARSTC_TYPE_CD = ''
-      AND OC.OFC_CHARSTC_CTGRY_CD = ''
-      AND OC.DIR_DSPLY_IND = ''
--- Network Filters
-      -- If the effective date is different for each network.
---      AND(RGNL_NTWK_ID, POA_NTWK_EFCTV_DT) IN (
---      ('NC03',  TO_DATE('01/01/1901','MM/DD/YYYY')),
---      ('ANTMNP', TO_DATE('01/01/1901','MM/DD/YYYY'))
---      )
-      -- If the effective date is same for each network.
+      /* Network filters */
       AND NW.RGNL_NTWK_ID IN ('NC03', 'ANTMNP')
       AND N.POA_NTWK_EFCTV_DT = TO_DATE('01/01/1901','MM/DD/YYYY')
       AND N.MAX_MBR_CNT = '0'
@@ -131,34 +129,41 @@ WITH base AS (
       AND N.MIN_AGE_NBR = '0'
       AND N.MAX_AGE_NBR = '999'
       AND N.PAT_GNDR_CD = '8002'
--- Accepting Patient Indicator-"1936" Not Accepting New Patients-"1937"
-      AND NN.CP_TYPE_CD = '1936' 
---OFFICE HOURS FILTER (Monday-"8000", Tuesday-"8001", Wednesday-"8002", Thursday-"8003", Friday-"8004", Saturday-"8005", Sunday-"8006"
+      /* Accepting Patient Indicator – '1936' Yes, '1937' No */
+      AND NN.CP_TYPE_CD = '1936'
+      -- Office Characteristics
+      AND CD.CD_VAL_NM = 'Services'
+      AND CDD.SHRT_DESC_TXT = 'Telehealth'
+      AND OC.DIR_DSPLY_IND = 'Y'
+      
+      /* Office hours filter */
       AND (
             CASE HR.DAY_OF_THE_WEEK_CD
-            WHEN '8000' THEN 'Monday'
-            WHEN '8001' THEN 'Tuesday'
-            WHEN '8002' THEN 'Wednesday'
-            WHEN '8003' THEN 'Thursday'
-            WHEN '8004' THEN 'Friday'
-            WHEN '8005' THEN 'Saturday'
-            WHEN '8006' THEN 'Sunday'
-            ELSE 'Unknown'
+                WHEN '8017' THEN 'Monday'
+                WHEN '8018' THEN 'Tuesday'
+                WHEN '8002' THEN 'Wednesday'
+                WHEN '8003' THEN 'Thursday'
+                WHEN '8004' THEN 'Friday'
+                WHEN '8005' THEN 'Saturday'
+                WHEN '8006' THEN 'Sunday'
+                ELSE 'Unknown'
             END,
-       HR.OFC_STRT_1_TM, HR.OFC_END_1_TM) IN (
-      ('Tuesday', '10:00 AM', '6:00 PM'),  -- Tuesday 10–6
-      ('Wednesday', '10:00 AM', '6:00 PM'),  -- Wednesday 10–6
-      ('Thursday', '10:00 AM', '6:00 PM'),  -- Thursday 10–6
-      ('Friday', '10:00 AM', '1:00 PM')   -- Friday 10–1
-      )
+            HR.OFC_STRT_1_TM,
+            HR.OFC_END_1_TM
+          ) IN (
+            ('Tuesday',   '10:00 AM', '6:00 PM'),
+            ('Wednesday', '10:00 AM', '6:00 PM'),
+            ('Thursday',  '10:00 AM', '6:00 PM'),
+            ('Friday',    '10:00 AM', '1:00 PM')
+          )
 )
-SELECT 
-RGNL_NTWK_ID, 
-  CASE
-    WHEN COUNT(*) > 0 THEN 'Audit Pass'
-    ELSE 'Audit Fail'
-  END AS AUDIT_STATUS
+SELECT
+    RGNL_NTWK_ID,
+    CNTCT_TYPE_DESC, CNTCT_VAL_TXT, DAY_OF_WEEK_NM, OFC_STRT_1_TM, OFC_END_1_TM, CD_VAL_NM, SHRT_DESC_TXT,
+    CASE
+    WHEN COUNT(*) > 0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS AUDIT_STATUS
 FROM base
 WHERE REGEXP_REPLACE(LOWER(base.REMIT_ADDRESS), '[[:space:]]+', ' ')
-     = REGEXP_REPLACE(LOWER('3620 Long Beach Blvd, Ste C9, Long Beach, CA, 90807'), '[[:space:]]+', ' ')
-GROUP BY RGNL_NTWK_ID
+      = REGEXP_REPLACE(LOWER('3620 Long Beach Blvd, Ste C9, Long Beach, CA, 90807'), '[[:space:]]+', ' ')
+GROUP BY RGNL_NTWK_ID, CNTCT_TYPE_DESC, CNTCT_VAL_TXT, DAY_OF_WEEK_NM, OFC_STRT_1_TM, OFC_END_1_TM, CD_VAL_NM, SHRT_DESC_TXT
+ORDER BY RGNL_NTWK_ID, DAY_OF_WEEK_NM;
