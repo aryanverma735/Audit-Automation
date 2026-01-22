@@ -49,6 +49,7 @@ WITH base AS (
             WHEN '157'  THEN 'Directory Phone Number'
             WHEN '8007' THEN 'Email address'
             WHEN '160'  THEN 'Fax Phone Number'
+            WHEN '156'  THEN '24 Hour/After-Hours Phone Number'
             ELSE 'Unknown'
         END AS CNTCT_TYPE_DESC,
         PC.CNTCT_VAL_TXT,
@@ -112,6 +113,7 @@ WITH base AS (
                 WHEN '157'  THEN 'Directory Phone Number'
                 WHEN '8007' THEN 'Email address'
                 WHEN '160'  THEN 'Fax Phone Number'
+                WHEN '156'  THEN '24 Hour/After-Hours Phone Number'
                 ELSE 'Unknown'
             END,
             PC.CNTCT_VAL_TXT,
