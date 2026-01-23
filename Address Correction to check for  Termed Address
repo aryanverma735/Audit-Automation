@@ -1,0 +1,89 @@
+
+WITH addr AS (
+  SELECT 
+    p.mstr_prov_id,
+    poa.poa_key,
+    poa.padrs_type_cd,
+    s.sps_stndrdzd_adrs_id,
+    poa.padrs_trmntn_dt,
+    poa.padrs_trmntn_rsn_cd,
+
+    /* Build address WITHOUT country, WITH optional ZIP+4 */
+    RTRIM(
+      NVL2(NULLIF(TRIM(s.adrs_line_1_txt), ''), TRIM(s.adrs_line_1_txt) || ', ', '') ||
+      NVL2(NULLIF(TRIM(s.adrs_line_2_txt), ''), TRIM(s.adrs_line_2_txt) || ', ', '') ||
+      NVL2(NULLIF(TRIM(s.adrs_line_3_txt), ''), TRIM(s.adrs_line_3_txt) || ', ', '') ||
+      NVL2(NULLIF(TRIM(s.adrs_city_nm), ''),     TRIM(s.adrs_city_nm)     || ', ', '') ||
+      NVL2(NULLIF(TRIM(s.postl_cd_st_prvnc_nm), ''), TRIM(s.postl_cd_st_prvnc_nm) || ', ', '') ||
+      CASE
+        WHEN NULLIF(TRIM(s.postl_cd), '') IS NOT NULL
+         AND NULLIF(TRIM(s.postl_cd_plus_four), '') IS NOT NULL
+          THEN TRIM(s.postl_cd) || '-' || TRIM(s.postl_cd_plus_four)
+        WHEN NULLIF(TRIM(s.postl_cd), '') IS NOT NULL
+          THEN TRIM(s.postl_cd)
+        WHEN NULLIF(TRIM(s.postl_cd_plus_four), '') IS NOT NULL
+          THEN TRIM(s.postl_cd_plus_four)
+        ELSE NULL
+      END
+    , ', ') AS built_address
+
+  FROM prov p
+  LEFT JOIN poa
+    ON poa.mstr_prov_id = p.mstr_prov_id
+  LEFT JOIN stndrdzd_adrs s
+    ON s.sps_stndrdzd_adrs_id = poa.sps_stndrdzd_adrs_id
+  WHERE p.npi = '1417556317'
+),
+
+classified AS (
+  SELECT
+    a.*,
+    CASE 
+      WHEN a.padrs_trmntn_rsn_cd IS NOT NULL
+       AND a.padrs_trmntn_dt IS NOT NULL
+       AND a.padrs_trmntn_dt <> TO_DATE('12/31/9999','MM/DD/YYYY')
+      THEN 'TERMED'
+      ELSE 'ACTIVE'
+    END AS addr_status,
+
+    /* Normalize built address for robust matching */
+    REGEXP_REPLACE(LOWER(TRIM(a.built_address)), '[^a-z0-9]+', '') AS norm_built
+  FROM addr a
+),
+
+matched AS (
+  SELECT
+    c.*,
+    /* Normalize expected strings too */
+    REGEXP_REPLACE(LOWER(TRIM('115 TECHNOLOGY DR, unit B202, TRUMBULL, CT,06611-9998')), '[^a-z0-9]+', '') AS norm_expected_active,
+    REGEXP_REPLACE(LOWER(TRIM('3180 MAIN ST STE 106, BRIDGEPORT, CT,06606 - 4237')),      '[^a-z0-9]+', '') AS norm_expected_termed
+  FROM classified c
+),
+
+ranked AS (
+  SELECT
+    m.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY m.addr_status
+      ORDER BY
+        /* Pick the best match per status */
+        CASE 
+          WHEN m.addr_status = 'ACTIVE' AND m.norm_built = m.norm_expected_active THEN 1
+          WHEN m.addr_status = 'TERMED' AND m.norm_built = m.norm_expected_termed THEN 1
+          ELSE 0
+        END DESC,
+        /* For termed prefer most recent termination */
+        CASE WHEN m.addr_status = 'TERMED' THEN m.padrs_trmntn_dt END DESC,
+        m.poa_key DESC
+    ) AS rn
+  FROM matched m
+  WHERE
+    (m.addr_status = 'ACTIVE' AND m.norm_built = m.norm_expected_active)
+    OR
+    (m.addr_status = 'TERMED' AND m.norm_built = m.norm_expected_termed)
+)
+
+SELECT *
+FROM ranked
+WHERE rn = 1
+ORDER BY addr_status;
