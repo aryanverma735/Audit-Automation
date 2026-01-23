@@ -85,6 +85,6 @@ DISTINCT(RGNL_NTWK_ID),
     ELSE 'Audit Fail'
   END AS AUDIT_STATUS
 FROM base
---WHERE REGEXP_REPLACE(LOWER(base.FULL_ADDRESS), '[[:space:]]+', ' ') =
---      REGEXP_REPLACE(LOWER('8120 Timberlake Way, Ste 109, Sacramento, Sacramento, CA, 95823-5413'), '[[:space:]]+', ' ')
+WHERE REGEXP_REPLACE(LOWER(TRIM(base.REMIT_ADDRESS)), '[^a-z0-9]+', '') =
+     REGEXP_REPLACE(LOWER(TRIM('8120 Timberlake Way, Ste 109, Sacramento, Sacramento, CA, 95823-5413')), '[^a-z0-9]+', '')
 GROUP BY RGNL_NTWK_ID;
