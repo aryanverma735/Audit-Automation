@@ -3,5 +3,6 @@ SELECT
   table_name,
   column_name
 FROM all_tab_columns
-WHERE UPPER(column_name) LIKE '%PDM%'
+WHERE UPPER(column_name) LIKE '%TIT%'
+AND owner = 'SPSOWNER'
 ORDER BY owner, table_name, column_name;
