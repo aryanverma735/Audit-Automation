@@ -1,1 +1,106 @@
+WITH params AS (
+    SELECT
+        /* Use either MSTR_PROV_ID directly OR NPI to derive it */
+        /* If you always have MSTR_PROV_ID, set p_mstr_prov_id and ignore p_npi */
+        '1639896384'  AS p_npi,
+        NULL          AS p_mstr_prov_id,
 
+        /* ALT ID filters (same values apply to both tables) */
+        'SBC728'      AS p_altid_txt,
+        'CA'          AS p_altid_sor_cd,
+        '8013'        AS p_altid_type_cd,
+--        'CA'          AS p_altid_st_prvnc_cd,     -- if not required, set NULL
+
+        /* Address filter */
+        '5771 N Fresno St, Ste 101, Fresno, Fresno, CA, 93710-6091' AS p_expected_full_address
+    FROM dual
+),
+prov_key AS (
+    /* Determine MSTR_PROV_ID once */
+    SELECT
+        COALESCE(p.p_mstr_prov_id, l.mstr_prov_id) AS mstr_prov_id,
+        p.*
+    FROM params p
+    LEFT JOIN prov l
+      ON l.npi = p.p_npi
+),
+addr_match AS (
+    /* Find POA(s) for the provider whose address matches expected */
+    SELECT
+        m.poa_key,
+        k.mstr_prov_id,
+        /* build normalized address for matching */
+        REGEXP_REPLACE(
+            LOWER(TRIM(
+                REGEXP_REPLACE(
+                    NVL2(NULLIF(TRIM(s.adrs_line_1_txt), ''), TRIM(s.adrs_line_1_txt) || ', ', '') ||
+                    NVL2(NULLIF(TRIM(s.adrs_line_2_txt), ''), TRIM(s.adrs_line_2_txt) || ', ', '') ||
+                    NVL2(NULLIF(TRIM(s.adrs_line_3_txt), ''), TRIM(s.adrs_line_3_txt) || ', ', '') ||
+                    NVL2(NULLIF(TRIM(s.adrs_city_nm),   ''), TRIM(s.adrs_city_nm)   || ', ', '') ||
+                    NVL2(NULLIF(TRIM(s.cnty_nm),        ''), TRIM(s.cnty_nm)        || ', ', '') ||
+                    NVL2(NULLIF(TRIM(s.postl_cd_st_prvnc_nm), ''), TRIM(s.postl_cd_st_prvnc_nm) || ', ', '') ||
+                    CASE
+                        WHEN NULLIF(TRIM(s.postl_cd), '') IS NOT NULL
+                         AND NULLIF(TRIM(s.postl_cd_plus_four), '') IS NOT NULL
+                          THEN TRIM(s.postl_cd) || '-' || TRIM(s.postl_cd_plus_four)
+                        WHEN NULLIF(TRIM(s.postl_cd), '') IS NOT NULL
+                          THEN TRIM(s.postl_cd)
+                        WHEN NULLIF(TRIM(s.postl_cd_plus_four), '') IS NOT NULL
+                          THEN TRIM(s.postl_cd_plus_four)
+                        ELSE NULL
+                    END,
+                    '[, ]+$'
+                )
+            )),
+            '[^a-z0-9]+',
+            ''
+        ) AS norm_full_address
+    FROM prov_key k
+    JOIN poa m
+      ON m.mstr_prov_id = k.mstr_prov_id
+    JOIN stndrdzd_adrs s
+      ON s.sps_stndrdzd_adrs_id = m.sps_stndrdzd_adrs_id
+),
+checks AS (
+    SELECT
+        k.mstr_prov_id,
+
+        /* Check 1: ALT ID loaded in PROV_ALT_IDFCTN */
+        CASE WHEN EXISTS (
+            SELECT 1
+            FROM prov_alt_idfctn a
+            WHERE a.mstr_prov_id = k.mstr_prov_id
+              AND TRIM(a.altid_txt)     = TRIM(k.p_altid_txt)
+--              AND a.altid_sor_cd        = k.p_altid_sor_cd
+              AND a.altid_type_cd       = k.p_altid_type_cd
+--              AND (k.p_altid_st_prvnc_cd IS NULL OR a.altid_st_prvnc_cd = k.p_altid_st_prvnc_cd)
+        ) THEN 'Yes' ELSE 'No' END AS prov_altid_loaded,
+
+        /* Check 2: ALT ID loaded in POA_ALT_IDFCTN for the address-matching POA */
+        CASE WHEN EXISTS (
+            SELECT 1
+            FROM addr_match am
+            JOIN poa_alt_idfctn pa
+              ON pa.poa_key = am.poa_key
+            WHERE am.mstr_prov_id = k.mstr_prov_id
+              AND am.norm_full_address =
+                  REGEXP_REPLACE(LOWER(TRIM(k.p_expected_full_address)), '[^a-z0-9]+', '')
+
+              AND TRIM(pa.altid_txt)   = TRIM(k.p_altid_txt)
+              AND pa.altid_sor_cd      = k.p_altid_sor_cd
+              AND pa.altid_type_cd     = k.p_altid_type_cd
+--              AND (k.p_altid_st_prvnc_cd IS NULL OR pa.altid_st_prvnc_cd = k.p_altid_st_prvnc_cd)
+        ) THEN 'Yes' ELSE 'No' END AS addr_altid_loaded
+
+    FROM prov_key k
+)
+SELECT 
+    mstr_prov_id,
+    prov_altid_loaded,
+    addr_altid_loaded,
+    CASE
+        WHEN prov_altid_loaded = 'Yes' AND addr_altid_loaded = 'Yes'
+            THEN 'Audit Pass'
+        ELSE 'Audit Fail'
+    END AS audit_status
+FROM checks;
