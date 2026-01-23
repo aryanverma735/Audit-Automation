@@ -1,0 +1,42 @@
+WITH base AS (
+    SELECT 
+        L.MSTR_PROV_ID,
+        PA.*,
+        REGEXP_REPLACE(
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_1_TXT), ''), TRIM(S.ADRS_LINE_1_TXT) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_2_TXT), ''), TRIM(S.ADRS_LINE_2_TXT) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_3_TXT), ''), TRIM(S.ADRS_LINE_3_TXT) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.ADRS_CITY_NM), ''),   TRIM(S.ADRS_CITY_NM) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.CNTY_NM), ''),        TRIM(S.CNTY_NM) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.POSTL_CD_ST_PRVNC_NM), ''), TRIM(S.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+            CASE
+                WHEN NULLIF(TRIM(S.POSTL_CD), '') IS NOT NULL 
+                 AND NULLIF(TRIM(S.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+                  THEN TRIM(S.POSTL_CD) || '-' || TRIM(S.POSTL_CD_PLUS_FOUR)
+                WHEN NULLIF(TRIM(S.POSTL_CD), '') IS NOT NULL
+                  THEN TRIM(S.POSTL_CD)
+                WHEN NULLIF(TRIM(S.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+                  THEN TRIM(S.POSTL_CD_PLUS_FOUR)
+                ELSE NULL
+            END,
+            '[, ]+$'
+        ) AS FULL_ADDRESS
+    FROM PROV L
+    JOIN PROV_ALT_IDFCTN A
+      ON L.MSTR_PROV_ID = A.MSTR_PROV_ID
+    JOIN POA M_DIR
+      ON M_DIR.MSTR_PROV_ID = L.MSTR_PROV_ID
+    JOIN STNDRDZD_ADRS S
+      ON S.SPS_STNDRDZD_ADRS_ID = M_DIR.SPS_STNDRDZD_ADRS_ID
+    JOIN POA_ALT_IDFCTN PA 
+      ON M_DIR.POA_KEY = PA.POA_KEY  
+    WHERE 
+        L.NPI = '1639896384'
+        AND PA.ALTID_SOR_CD = 'CA'
+        AND PA.ALTID_TYPE_CD = '8013'
+        AND TRIM(PA.ALTID_TXT) = 'SBC728'
+)
+SELECT *
+FROM base
+WHERE REGEXP_REPLACE(LOWER(TRIM(FULL_ADDRESS)), '[^a-z0-9]+', '') =
+      REGEXP_REPLACE(LOWER(TRIM('5771 N Fresno St, Ste 101, Fresno, Fresno, CA, 93710-6091')), '[^a-z0-9]+', '');
