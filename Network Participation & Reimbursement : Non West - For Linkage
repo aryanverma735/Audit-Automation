@@ -87,18 +87,19 @@ WITH Q AS (
     WHERE
         L_ORG.MSTR_PROV_ID IN ('1101197287')
         AND L_IND.MSTR_PROV_ID IN ('1101211030')
-        AND NW.RGNL_NTWK_ID IN ('NYNTWKHARP01')
-        AND J.DIR_DSPLY_IND = 'Y'
+        AND NW.RGNL_NTWK_ID IN ('NYNTWKESPL01')
+        AND UPPER(J.DIR_DSPLY_IND) = UPPER('Y')
+        AND UPPER(J.ROLE_CD) = UPPER('S')
         AND J.MAX_MBR_CNT = '99999'
+        --Accepting New Patients - "1936", Not Accepting New Patients - "1937"
+        AND RC.CP_TYPE_CD = '1936'
+        -- Male - "8000", Female - "8001", Both - "8002"
+        AND J.PAT_GNDR_CD = '8002'
         AND J.MIN_AGE_NBR = '0'
         AND J.MAX_AGE_NBR = '999'
-        AND J.PAT_GNDR_CD = '8002'
-        AND J.ROLE_CD = 'S'
-        AND RC.CP_TYPE_CD = '1936'
-        AND PN.SPCLTY_NM = 'Nurse Midwife' 
+        AND PN.SPCLTY_NM = 'Marriage & Family Therapy' 
         AND RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT = TO_DATE('09/01/2025','MM/DD/YYYY')
         AND RS.PRMRY_SPCLTY_IND = 'Y'
-
 )
 SELECT RGNL_NTWK_ID,
     CASE
