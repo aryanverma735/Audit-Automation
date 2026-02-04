@@ -58,10 +58,14 @@ WITH Q AS (
             )
         , ' ,') AS FULL_ADDRESS
     FROM SPSOWNER.RLTD_PADRS_NTWK J
+    JOIN CD_VAL CC 
+    ON J.PAT_GNDR_CD = CC.CD_VAL_CD
     JOIN SPSOWNER.RLTD_PADRS K
         ON K.RLTD_PADRS_KEY = J.RLTD_PADRS_KEY
     JOIN RLTD_PADRS_NTWK_CP RC
         ON J.RLTD_PADRS_NTWK_KEY = RC.RLTD_PADRS_NTWK_KEY
+    JOIN CD_VAL C 
+    ON RC.CP_TYPE_CD = C.CD_VAL_CD
     JOIN RLTD_PADRS_NTWK_SPCLTY RS
         ON J.RLTD_PADRS_NTWK_KEY = RS.RLTD_PADRS_NTWK_KEY
     JOIN PROV_SPCLTY PS
@@ -92,16 +96,18 @@ WITH Q AS (
         AND UPPER(J.ROLE_CD) = UPPER('S')
         AND J.MAX_MBR_CNT = '99999'
         --Accepting New Patients - "1936", Not Accepting New Patients - "1937"
-        AND RC.CP_TYPE_CD = '1936'
-        -- Male - "8000", Female - "8001", Both - "8002"
-        AND J.PAT_GNDR_CD = '8002'
+        AND C.CD_VAL_NM = 'Accepting New Patients'
+--        AND RC.CP_TYPE_CD = '1936'
+        AND CC.CD_VAL_NM = 'Both'
+--        AND J.PAT_GNDR_CD = '8002'
         AND J.MIN_AGE_NBR = '0'
         AND J.MAX_AGE_NBR = '999'
         AND PN.SPCLTY_NM = 'Marriage & Family Therapy' 
         AND RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT = TO_DATE('09/01/2025','MM/DD/YYYY')
         AND RS.PRMRY_SPCLTY_IND = 'Y'
 )
-SELECT RGNL_NTWK_ID,
+SELECT 
+RGNL_NTWK_ID,
     CASE
     WHEN COUNT(*) > 0 THEN 'Audit Pass'
     ELSE 'Audit Fail'
@@ -110,4 +116,4 @@ FROM Q
 WHERE
     REGEXP_REPLACE(LOWER(Q.FULL_ADDRESS), '[[:space:]]+', ' ')
      = REGEXP_REPLACE(LOWER('280 Madison Ave, Rm 1110, New York, NY, 10016'), '[[:space:]]+', ' ')
- GROUP BY RGNL_NTWK_ID;
+-- GROUP BY RGNL_NTWK_ID;
