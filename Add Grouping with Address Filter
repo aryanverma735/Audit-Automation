@@ -1,0 +1,113 @@
+WITH Q AS (
+  SELECT 
+      G.GRPG_ID,
+      G.GRPG_NM,
+      G.GRPG_ROLE_CD,
+      G.PAYE_ENTY_CD,
+      G.GRPG_TYPE_CD,
+      GA.ALTID_SOR_CD,
+      GA.ALTID_TYPE_CD,
+      GA.ALTID_TXT,
+      GA.GRPG_ALTID_EFCTV_DT,
+      GR.RMTNC_ID,
+      GR.GRPG_RMTNC_KEY,
+      GP.RLTD_PADRS_KEY,
+      NTWK.RGNL_NTWK_ID,
+      GN.GRPG_NTWK_EFCTV_DT,
+      G_ORG.MSTR_PROV_ID,
+      G_ORG.GRPG_PRVORG_RLTN_EFCTV_DT,
+      GT.FED_TAX_ID,
+      GT.GRPG_TAX_IDFCTN_EFCTV_DT,
+      GG.RLTD_GRPG_ID,
+
+      /* === FULL_ADDRESS: SP (practice/related address) only (no county) === */
+      COALESCE(
+        RTRIM(
+          /* Line 1 */
+          NVL2(NULLIF(TRIM(SP.ADRS_LINE_1_TXT), ''), TRIM(SP.ADRS_LINE_1_TXT) || ', ', '') ||
+          /* Line 2 */
+          NVL2(NULLIF(TRIM(SP.ADRS_LINE_2_TXT), ''), TRIM(SP.ADRS_LINE_2_TXT) || ', ', '') ||
+          /* Line 3 */
+          NVL2(NULLIF(TRIM(SP.ADRS_LINE_3_TXT), ''), TRIM(SP.ADRS_LINE_3_TXT) || ', ', '') ||
+          /* City */
+          NVL2(NULLIF(TRIM(SP.ADRS_CITY_NM), ''),     TRIM(SP.ADRS_CITY_NM)     || ', ', '') ||
+          /* State / Province (County removed) */
+          NVL2(NULLIF(TRIM(SP.POSTL_CD_ST_PRVNC_NM), ''), TRIM(SP.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+          /* Postal code (+ optional plus-four) */
+          CASE
+            WHEN NULLIF(TRIM(SP.POSTL_CD), '') IS NOT NULL
+             AND NULLIF(TRIM(SP.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+              THEN TRIM(SP.POSTL_CD) || '-' || TRIM(SP.POSTL_CD_PLUS_FOUR)
+            WHEN NULLIF(TRIM(SP.POSTL_CD), '') IS NOT NULL
+              THEN TRIM(SP.POSTL_CD)
+            WHEN NULLIF(TRIM(SP.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+              THEN TRIM(SP.POSTL_CD_PLUS_FOUR)
+            ELSE NULL
+          END
+        , ', ')
+      , ''
+      ) AS FULL_ADDRESS,
+
+      /* === REMIT_ADDRESS: SR (remit/POA) only (no county) === */
+      COALESCE(
+        RTRIM(
+          /* Line 1 */
+          NVL2(NULLIF(TRIM(SR.ADRS_LINE_1_TXT), ''), TRIM(SR.ADRS_LINE_1_TXT) || ', ', '') ||
+          /* Line 2 */
+          NVL2(NULLIF(TRIM(SR.ADRS_LINE_2_TXT), ''), TRIM(SR.ADRS_LINE_2_TXT) || ', ', '') ||
+          /* Line 3 */
+          NVL2(NULLIF(TRIM(SR.ADRS_LINE_3_TXT), ''), TRIM(SR.ADRS_LINE_3_TXT) || ', ', '') ||
+          /* City */
+          NVL2(NULLIF(TRIM(SR.ADRS_CITY_NM), ''),     TRIM(SR.ADRS_CITY_NM)     || ', ', '') ||
+          /* State / Province */
+          NVL2(NULLIF(TRIM(SR.POSTL_CD_ST_PRVNC_NM), ''), TRIM(SR.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+          /* Postal code (+ optional plus-four) */
+          CASE
+            WHEN NULLIF(TRIM(SR.POSTL_CD), '') IS NOT NULL
+             AND NULLIF(TRIM(SR.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+              THEN TRIM(SR.POSTL_CD) || '-' || TRIM(SR.POSTL_CD_PLUS_FOUR)
+            WHEN NULLIF(TRIM(SR.POSTL_CD), '') IS NOT NULL
+              THEN TRIM(SR.POSTL_CD)
+            WHEN NULLIF(TRIM(SR.POSTL_CD_PLUS_FOUR), '') IS NOT NULL
+              THEN TRIM(SR.POSTL_CD_PLUS_FOUR)
+            ELSE NULL
+          END
+        , ', ')
+      , ''
+      ) AS REMIT_ADDRESS
+
+  FROM GRPG G
+  LEFT JOIN GRPG_ALT_IDFCTN GA ON GA.GRPG_ID = G.GRPG_ID
+  LEFT JOIN GRPG_RMTNC GR       ON GR.GRPG_ID = G.GRPG_ID
+  LEFT JOIN POA_RMTNC PR        ON PR.RMTNC_ID = GR.RMTNC_ID
+  LEFT JOIN POA PRR             ON PRR.POA_KEY = PR.POA_KEY
+  -- Remit address
+  LEFT JOIN STNDRDZD_ADRS SR    ON SR.SPS_STNDRDZD_ADRS_ID = PRR.SPS_STNDRDZD_ADRS_ID
+  -- Practice address
+  LEFT JOIN GRPG_RLTD_PADRS GP  ON GP.GRPG_ID = G.GRPG_ID
+  LEFT JOIN RLTD_PADRS R        ON R.RLTD_PADRS_KEY = GP.RLTD_PADRS_KEY
+  LEFT JOIN POA P               ON R.POA_KEY = P.POA_KEY
+  LEFT JOIN STNDRDZD_ADRS SP    ON SP.SPS_STNDRDZD_ADRS_ID = P.SPS_STNDRDZD_ADRS_ID
+  -- Networks
+  LEFT JOIN GRPG_NTWK GN        ON GN.GRPG_ID = G.GRPG_ID
+  LEFT JOIN NTWK                ON NTWK.NTWK_KEY = GN.NTWK_KEY
+  -- Linkage
+  LEFT JOIN GRPG_PROV_ORG_RLTNSHP G_ORG ON G_ORG.GRPG_ID = G.GRPG_ID
+  -- TIN
+  LEFT JOIN GRPG_TAX_IDFCTN GT  ON GT.GRPG_ID = G.GRPG_ID
+  -- Group Linkage
+  LEFT JOIN GRPG_GRPG_RLTNSHP GG ON GG.GRPG_ID = G.GRPG_ID
+
+  WHERE G.GRPG_NM = 'Med-Ped Associates'
+    AND GA.ALTID_TXT IN ('06052187')
+    AND GT.FED_TAX_ID = ''
+)
+SELECT *
+FROM Q
+WHERE 1=1
+  /* === Address filters like your second query (case-insensitive, space-normalized) === */
+  AND REGEXP_REPLACE(LOWER(Q.FULL_ADDRESS),  '[[:space:]]+', ' ') =
+      REGEXP_REPLACE(LOWER('<<Practice_Address_No_County>>'), '[[:space:]]+', ' ')
+  AND REGEXP_REPLACE(LOWER(Q.REMIT_ADDRESS), '[[:space:]]+', ' ') =
+      REGEXP_REPLACE(LOWER('<<Remit_Address_No_County>>'),    '[[:space:]]+', ' ');
+``
