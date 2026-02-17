@@ -4,13 +4,11 @@ WITH Q AS (
         L_IND.MSTR_PROV_ID AS IND_MSTR_PROV_ID,
         L_IND.PROV_ORG_FED_TAX_ID AS IND_TIN,
         L_IND.PROV_CTGRY_CD AS IND_PROV_CTGRY_CD,
-
         K.MSTR_PROV_ID AS ORG_EID,
         L_ORG.PROV_ORG_NM AS ORG_NAME,
         L_ORG.PROV_CTGRY_CD AS ORG_PROV_CTGRY_CD,
         L_ORG.NPI AS ORG_NPI,
         L_ORG.PROV_ORG_FED_TAX_ID AS ORG_TIN,
-
         M.PADRS_TYPE_CD,
         K.RLTD_PADRS_KEY,
         J.DIR_DSPLY_IND,
@@ -19,7 +17,6 @@ WITH Q AS (
         J.MAX_AGE_NBR,
         J.PAT_GNDR_CD,
         J.ROLE_CD,
-
         RC.CP_TYPE_CD,
         RS.PROV_SPCLTY_KEY,
         RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT,
@@ -89,21 +86,19 @@ WITH Q AS (
     JOIN SPSOWNER.STNDRDZD_ADRS S
         ON M.SPS_STNDRDZD_ADRS_ID = S.SPS_STNDRDZD_ADRS_ID
     WHERE
-        L_ORG.MSTR_PROV_ID IN ('1101197287')
-        AND L_IND.MSTR_PROV_ID IN ('1101211030')
-        AND NW.RGNL_NTWK_ID IN ('NYNTWKESPL01')
+        L_ORG.MSTR_PROV_ID IN ('1104139849')
+        AND L_IND.MSTR_PROV_ID IN ('1101694638')
+        AND NW.RGNL_NTWK_ID IN ('NVNTWKKIDS01')
+        AND J.RLTD_PADRS_NTWK_EFCTV_DT = TO_DATE('03/01/2026','MM/DD/YYYY')
         AND UPPER(J.DIR_DSPLY_IND) = UPPER('Y')
         AND UPPER(J.ROLE_CD) = UPPER('S')
         AND J.MAX_MBR_CNT = '99999'
-        --Accepting New Patients - "1936", Not Accepting New Patients - "1937"
         AND C.CD_VAL_NM = 'Accepting New Patients'
---        AND RC.CP_TYPE_CD = '1936'
-        AND CC.CD_VAL_NM = 'Both'
---        AND J.PAT_GNDR_CD = '8002'
+        AND CC.CD_VAL_NM = 'Both'                   --Gender
         AND J.MIN_AGE_NBR = '0'
         AND J.MAX_AGE_NBR = '999'
-        AND PN.SPCLTY_NM = 'Marriage & Family Therapy' 
-        AND RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT = TO_DATE('09/01/2025','MM/DD/YYYY')
+        AND PN.SPCLTY_NM = 'Geriatric Medicine' 
+        AND RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT = TO_DATE('03/01/2026','MM/DD/YYYY')
         AND RS.PRMRY_SPCLTY_IND = 'Y'
 )
 SELECT 
@@ -115,5 +110,5 @@ RGNL_NTWK_ID,
 FROM Q
 WHERE
     REGEXP_REPLACE(LOWER(Q.FULL_ADDRESS), '[[:space:]]+', ' ')
-     = REGEXP_REPLACE(LOWER('280 Madison Ave, Rm 1110, New York, NY, 10016'), '[[:space:]]+', ' ')
--- GROUP BY RGNL_NTWK_ID;
+     = REGEXP_REPLACE(LOWER('2621 W Horizon Ridge Pkwy, Ste 110, Henderson, NV, 89052'), '[[:space:]]+', ' ')
+ GROUP BY RGNL_NTWK_ID;
