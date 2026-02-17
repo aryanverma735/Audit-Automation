@@ -1,0 +1,55 @@
+WITH Q AS(
+SELECT L.MSTR_PROV_ID,
+NW.RGNL_NTWK_ID,
+        RTRIM(
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_1_TXT), ''),
+                 TRIM(S.ADRS_LINE_1_TXT) || ', ', ''
+            ) ||
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_2_TXT), ''),
+                 TRIM(S.ADRS_LINE_2_TXT) || ', ', ''
+            ) ||
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_3_TXT), ''),
+                 TRIM(S.ADRS_LINE_3_TXT) || ', ', ''
+            ) ||
+            NVL2(NULLIF(TRIM(S.ADRS_CITY_NM), ''),
+                 TRIM(S.ADRS_CITY_NM) || ', ', ''
+            ) ||
+            NVL2(NULLIF(TRIM(S.POSTL_CD_ST_PRVNC_NM), ''),
+                 TRIM(S.POSTL_CD_ST_PRVNC_NM) || ', ', ''
+            ) ||
+            NVL2(NULLIF(TRIM(S.POSTL_CD), ''),
+                 TRIM(S.POSTL_CD), ''
+            )
+        , ' ,') AS FULL_ADDRESS
+    FROM SPSOWNER.PROV L
+    JOIN SPSOWNER.POA M_DIR
+      ON M_DIR.MSTR_PROV_ID = L.MSTR_PROV_ID
+    JOIN POA_NTWK N
+      ON N.POA_KEY = M_DIR.POA_KEY
+    JOIN POA_NTWK_CP NN
+      ON NN.POA_NTWK_KEY = N.POA_NTWK_KEY
+    JOIN POA_CNTCT PC
+      ON PC.POA_KEY = M_DIR.POA_KEY
+    JOIN CD_VAL CN
+      ON PC.CNTCT_DLVRY_MCHNSM_TYPE_CD = CN.CD_VAL_CD
+    JOIN PROV_ORG_NTWK PON
+      ON PON.PROV_ORG_NTWK_KEY = N.PROV_ORG_NTWK_KEY
+    JOIN NTWK NW
+      ON NW.NTWK_KEY = PON.NTWK_KEY
+    JOIN STNDRDZD_ADRS S
+      ON S.SPS_STNDRDZD_ADRS_ID = M_DIR.SPS_STNDRDZD_ADRS_ID
+  WHERE L.MSTR_PROV_ID = '1102193922'
+  AND NW.RGNL_NTWK_ID IN ('000000000001BPA3')
+  AND N.POA_NTWK_EFCTV_DT = TO_DATE('01/01/2018','MM/DD/YYYY')
+)
+SELECT 
+      DISTINCT(Q.RGNL_NTWK_ID),
+    CASE
+    WHEN COUNT(*) > 0 THEN 'Audit Pass'
+    ELSE 'Audit Fail'
+  END AS AUDIT_STATUS
+FROM Q
+WHERE
+    REGEXP_REPLACE(LOWER(Q.FULL_ADDRESS), '[[:space:]]+', ' ')
+     = REGEXP_REPLACE(LOWER('2215 E Clairemont Ave, Ste 5, Eau Claire, WI, 54701'), '[[:space:]]+', ' ')
+GROUP BY Q.RGNL_NTWK_ID
