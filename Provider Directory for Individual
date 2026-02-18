@@ -42,14 +42,13 @@ WITH base AS (
   JOIN PROV_SPCLTY PS
     ON RS.PROV_SPCLTY_KEY = PS.PROV_SPCLTY_KEY
   WHERE 
-    L_IND.MSTR_PROV_ID = '<[Direct_Display_Individual_EID]>'
-    AND NW.RGNL_NTWK_ID = '<[DirectoryDisplaySheet.ByField("Network ID")]>'
-    AND J.DIR_DSPLY_IND = '<[Directory_Display_Address.ByField("Final Directory Display")]>'
-    AND K.RLTD_PADRS_KEY = '<[Directory_Display_Address.ByField("Address ID")]>'  
+    L_IND.MSTR_PROV_ID = '1100177811'
+    AND NW.RGNL_NTWK_ID in ('BCCHIN00','BCCHMO00','BHMOPAT1','BHMOSG00','BHMOSL00','BHMOSL01','BHMOSL02','CACC03XX','CACC11XX','CACC55XX','CACC99XX','CAHDH200','CAHDHA00','CAHPT100')
+    AND J.DIR_DSPLY_IND = 'Y'
+    AND K.RLTD_PADRS_KEY = '7031997395'  
 )
 SELECT
-  CASE WHEN cnt > 0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS audit_result
-FROM (
-  SELECT COUNT(*) AS cnt
+  base.RGNL_NTWK_ID,
+  CASE WHEN COUNT(*)>0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS audit_result
   FROM base
-)
+  GROUP BY base.RGNL_NTWK_ID
