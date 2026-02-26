@@ -1,0 +1,367 @@
+WITH
+/* -----------------------------
+   1) Parameters (single-row)
+------------------------------*/
+params AS (
+    SELECT
+        '1101555770' AS p_org_mstr_prov_id,
+        '1101568795' AS p_ind_mstr_prov_id,
+        'CAWCERC'    AS p_rgnl_ntwk_id,
+
+        '1936'        AS p_cp_type_cd,
+        'Surgery, Orthopedic' AS p_spclty_nm,
+        TO_DATE('03/27/2006','MM/DD/YYYY') AS p_spclty_eff_dt,
+        'Y'           AS p_prmry_spclty_ind,
+
+        'CA'          AS p_ra_sor_cd,
+        'SP970000'    AS p_ra_1_id,
+        TO_DATE('03/27/2006','MM/DD/YYYY') AS p_ra_eff_dt,
+
+        /* Linkage filters */
+        'N'           AS p_j_dir_dsply_ind,
+        TO_DATE('03/27/2006','MM/DD/YYYY') AS p_j_eff_dt,
+
+        /* Address to audit (normalized) */
+        REGEXP_REPLACE(
+            LOWER('1901 W Lugonia Ave, Ste 210, Redlands, CA, 92374'),
+            '[[:space:]]+',' '
+        ) AS p_norm_addr
+    FROM dual
+),
+
+/* -----------------------------
+   2) Base join: keep ONLY org/ind/network restrictions here
+------------------------------*/
+base AS (
+    SELECT DISTINCT
+        /* ===== Individual ===== */
+        L_IND.NPI                  AS IND_NPI,
+        L_IND.MSTR_PROV_ID         AS IND_MSTR_PROV_ID,
+        L_IND.PROV_ORG_FED_TAX_ID  AS IND_TIN,
+        L_IND.PROV_CTGRY_CD        AS IND_PROV_CTGRY_CD,
+
+        /* ===== Organization ===== */
+        K.MSTR_PROV_ID             AS ORG_EID,
+        L_ORG.PROV_ORG_NM          AS ORG_NAME,
+        L_ORG.PROV_CTGRY_CD        AS ORG_PROV_CTGRY_CD,
+        L_ORG.NPI                  AS ORG_NPI,
+        L_ORG.PROV_ORG_FED_TAX_ID  AS ORG_TIN,
+
+        /* ===== Address / POA ===== */
+        M.PADRS_TYPE_CD,
+        K.RLTD_PADRS_KEY,
+
+        /* ===== Linkage (J) ===== */
+        J.ROLE_CD,
+        J.DIR_DSPLY_IND            AS IND_DIR_DISPLAY,
+        J.MIN_AGE_NBR              AS IND_MIN_AGE,
+        J.MAX_AGE_NBR              AS IND_MAX_AGE,
+        J.PAT_GNDR_CD              AS IND_PAT_CODE,
+        J.MAX_MBR_CNT              AS IND_MAX_COUNT,
+        J.RLTD_PADRS_NTWK_EFCTV_DT AS IND_NTWK_EFCTV_DATE,
+        J.RLTD_PADRS_NTWK_TRMNTN_DT,
+        J.RLTD_PADRS_NTWK_TRMNTN_RSN_CD,
+
+        /* ===== Network (N) ===== */
+        N.PROV_ROLE_CD,
+        N.DIR_DSPLY_IND,
+        N.MIN_AGE_NBR,
+        N.MAX_AGE_NBR,
+        N.PAT_GNDR_CD,
+        N.MAX_MBR_CNT,
+        N.POA_NTWK_EFCTV_DT,
+
+        /* ===== Contract / Specialty ===== */
+        RC.CP_TYPE_CD,
+        RS.PROV_SPCLTY_KEY,
+        RS.RLTD_PADRS_NW_SPCLTY_EFCTV_DT,
+        RS.PRMRY_SPCLTY_IND,
+        PS.SPCLTY_CD,
+        PN.SPCLTY_NM,
+
+        /* ===== Address Standardization ===== */
+        S.ADRS_EFCTV_DT,
+        S.ADRS_TRMNTN_DT,
+        S.ADRS_TRMNTN_RSN_CD,
+
+        /* ===== Network ===== */
+        NW.RGNL_NTWK_ID,
+        NW.NTWK_TRMNTN_DT,
+        NW.NTWK_TRMNTN_RSN_CD,
+
+        /* ===== Reimbursement ===== */
+        RM.RA_SOR_CD,
+        RM.RA_1_ID,
+        RM.RA_1_TYPE_CD,
+        RM.RA_EFCTV_DT,
+
+        /* ===== Concatenated address ===== */
+        RTRIM(
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_1_TXT), ''), TRIM(S.ADRS_LINE_1_TXT) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_2_TXT), ''), TRIM(S.ADRS_LINE_2_TXT) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.ADRS_LINE_3_TXT), ''), TRIM(S.ADRS_LINE_3_TXT) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.ADRS_CITY_NM), ''),      TRIM(S.ADRS_CITY_NM) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.POSTL_CD_ST_PRVNC_NM), ''), TRIM(S.POSTL_CD_ST_PRVNC_NM) || ', ', '') ||
+            NVL2(NULLIF(TRIM(S.POSTL_CD), ''), TRIM(S.POSTL_CD), '')
+        , ' ,') AS FULL_ADDRESS
+
+    FROM SPSOWNER.RLTD_PADRS_NTWK J
+    LEFT JOIN SPSOWNER.RLTD_PADRS K
+        ON K.RLTD_PADRS_KEY = J.RLTD_PADRS_KEY
+    LEFT JOIN RLTD_PADRS_NTWK_CP RC
+        ON J.RLTD_PADRS_NTWK_KEY = RC.RLTD_PADRS_NTWK_KEY
+    LEFT JOIN RLTD_PADRS_NTWK_SPCLTY RS
+        ON J.RLTD_PADRS_NTWK_KEY = RS.RLTD_PADRS_NTWK_KEY
+    LEFT JOIN PROV_SPCLTY PS
+        ON RS.PROV_SPCLTY_KEY = PS.PROV_SPCLTY_KEY
+    LEFT JOIN BOT_PRCG_SPCLTY_XREF PN
+        ON PS.SPCLTY_CD = PN.SPCLTY_CD
+    LEFT JOIN SPSOWNER.PROV L_ORG
+        ON L_ORG.MSTR_PROV_ID = K.MSTR_PROV_ID
+       AND L_ORG.PROV_CTGRY_CD = '182'
+    LEFT JOIN SPSOWNER.PROV L_IND
+        ON L_IND.MSTR_PROV_ID = K.RLTD_MSTR_PROV_ID
+       AND L_IND.PROV_CTGRY_CD = '181'
+    LEFT JOIN SPSOWNER.POA M
+        ON M.POA_KEY = K.POA_KEY
+    LEFT JOIN SPSOWNER.POA_NTWK N
+        ON N.POA_NTWK_KEY = J.POA_NTWK_KEY
+    LEFT JOIN SPSOWNER.POA_NTWK_RA RM
+        ON N.POA_NTWK_KEY = RM.POA_NTWK_KEY
+    LEFT JOIN SPSOWNER.PROV_ORG_NTWK PON
+        ON PON.PROV_ORG_NTWK_KEY = N.PROV_ORG_NTWK_KEY
+    LEFT JOIN SPSOWNER.NTWK NW
+        ON PON.NTWK_KEY = NW.NTWK_KEY
+    LEFT JOIN SPSOWNER.STNDRDZD_ADRS S
+        ON M.SPS_STNDRDZD_ADRS_ID = S.SPS_STNDRDZD_ADRS_ID
+
+    CROSS JOIN params p
+    WHERE
+        L_ORG.MSTR_PROV_ID = p.p_org_mstr_prov_id
+        AND L_IND.MSTR_PROV_ID = p.p_ind_mstr_prov_id
+        AND NW.RGNL_NTWK_ID = p.p_rgnl_ntwk_id
+),
+
+/* -----------------------------
+   3) Evaluate each rule as flags
+------------------------------*/
+eval AS (
+    SELECT
+        b.*,
+        p.p_rgnl_ntwk_id,
+
+        REGEXP_REPLACE(LOWER(b.FULL_ADDRESS), '[[:space:]]+',' ') AS norm_addr,
+
+        CASE WHEN b.CP_TYPE_CD = p.p_cp_type_cd THEN 1 ELSE 0 END AS ok_cp_type,
+        CASE WHEN b.SPCLTY_NM  = p.p_spclty_nm  THEN 1 ELSE 0 END AS ok_spclty_nm,
+        CASE WHEN b.RLTD_PADRS_NW_SPCLTY_EFCTV_DT = p.p_spclty_eff_dt THEN 1 ELSE 0 END AS ok_spclty_effdt,
+        CASE WHEN b.PRMRY_SPCLTY_IND = p.p_prmry_spclty_ind THEN 1 ELSE 0 END AS ok_primary,
+
+        CASE WHEN b.RA_SOR_CD = p.p_ra_sor_cd THEN 1 ELSE 0 END AS ok_ra_sor,
+        CASE WHEN b.RA_1_ID   = p.p_ra_1_id   THEN 1 ELSE 0 END AS ok_ra_1_id,
+        CASE WHEN b.RA_EFCTV_DT = p.p_ra_eff_dt THEN 1 ELSE 0 END AS ok_ra_effdt,
+
+        CASE WHEN (b.ROLE_CD = 'S' OR b.ROLE_CD IS NULL) THEN 1 ELSE 0 END AS ok_role,
+        CASE WHEN b.IND_DIR_DISPLAY = p.p_j_dir_dsply_ind THEN 1 ELSE 0 END AS ok_dir_display,
+        CASE WHEN b.IND_NTWK_EFCTV_DATE = p.p_j_eff_dt THEN 1 ELSE 0 END AS ok_j_effdt,
+
+        CASE WHEN REGEXP_REPLACE(LOWER(b.FULL_ADDRESS), '[[:space:]]+',' ') = p.p_norm_addr
+             THEN 1 ELSE 0 END AS ok_addr
+
+    FROM base b
+    CROSS JOIN params p
+),
+
+/* -----------------------------
+   4) Aggregate counts (GROUP BY network)
+------------------------------*/
+agg AS (
+    SELECT
+        p.p_rgnl_ntwk_id AS rgnl_ntwk_id,
+        COUNT(*) AS base_rows,
+
+        SUM(
+            CASE WHEN ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+               AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+               AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+               AND ok_addr=1
+            THEN 1 ELSE 0 END
+        ) AS matching_rows,
+
+        SUM(CASE WHEN ok_cp_type=0 THEN 1 ELSE 0 END) AS fail_cp_type_rows,
+        SUM(CASE WHEN ok_spclty_nm=0 THEN 1 ELSE 0 END) AS fail_spclty_nm_rows,
+        SUM(CASE WHEN ok_spclty_effdt=0 THEN 1 ELSE 0 END) AS fail_spclty_effdt_rows,
+        SUM(CASE WHEN ok_primary=0 THEN 1 ELSE 0 END) AS fail_primary_rows,
+        SUM(CASE WHEN ok_ra_sor=0 THEN 1 ELSE 0 END) AS fail_ra_sor_rows,
+        SUM(CASE WHEN ok_ra_1_id=0 THEN 1 ELSE 0 END) AS fail_ra_1_id_rows,
+        SUM(CASE WHEN ok_ra_effdt=0 THEN 1 ELSE 0 END) AS fail_ra_effdt_rows,
+        SUM(CASE WHEN ok_role=0 THEN 1 ELSE 0 END) AS fail_role_rows,
+        SUM(CASE WHEN ok_dir_display=0 THEN 1 ELSE 0 END) AS fail_dir_display_rows,
+        SUM(CASE WHEN ok_j_effdt=0 THEN 1 ELSE 0 END) AS fail_j_effdt_rows,
+        SUM(CASE WHEN ok_addr=0 THEN 1 ELSE 0 END) AS fail_addr_rows
+
+    FROM eval e
+    CROSS JOIN params p
+    GROUP BY p.p_rgnl_ntwk_id
+),
+
+/* -----------------------------
+   5) Culprit filters:
+      rows exist if ALL other rules pass but THIS one fails
+------------------------------*/
+culprits AS (
+    SELECT rgnl_ntwk_id, fail_field, cnt
+    FROM (
+        SELECT p.p_rgnl_ntwk_id AS rgnl_ntwk_id, 'CP_TYPE_CD' AS fail_field, COUNT(*) AS cnt
+        FROM eval e CROSS JOIN params p
+        WHERE ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_cp_type=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'SPCLTY_NM', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_spclty_nm=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'SPCLTY_EFF_DT', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_spclty_effdt=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'PRMRY_SPCLTY_IND', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_primary=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'RA_SOR_CD', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_ra_sor=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'RA_1_ID', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_ra_1_id=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'RA_EFCTV_DT', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_ra_effdt=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'ROLE_CD (S or NULL)', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_role=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'J.DIR_DSPLY_IND', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_j_effdt=1
+          AND ok_addr=1
+          AND ok_dir_display=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'J.RLTD_PADRS_NTWK_EFCTV_DT', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1
+          AND ok_addr=1
+          AND ok_j_effdt=0
+        GROUP BY p.p_rgnl_ntwk_id
+
+        UNION ALL
+        SELECT p.p_rgnl_ntwk_id, 'FULL_ADDRESS', COUNT(*)
+        FROM eval e CROSS JOIN params p
+        WHERE ok_cp_type=1 AND ok_spclty_nm=1 AND ok_spclty_effdt=1 AND ok_primary=1
+          AND ok_ra_sor=1 AND ok_ra_1_id=1 AND ok_ra_effdt=1
+          AND ok_role=1 AND ok_dir_display=1 AND ok_j_effdt=1
+          AND ok_addr=0
+        GROUP BY p.p_rgnl_ntwk_id
+    )
+)
+
+/* -----------------------------
+   6) Final: always 1 row output
+------------------------------*/
+SELECT
+    p.p_rgnl_ntwk_id AS rgnl_ntwk_id,
+    NVL(a.base_rows, 0) AS base_rows,
+    NVL(a.matching_rows, 0) AS matching_rows,
+
+    CASE WHEN NVL(a.matching_rows, 0) > 0 THEN 'Audit Pass' ELSE 'Audit Fail' END AS audit_status,
+
+    CASE
+        WHEN NVL(a.base_rows, 0) = 0 THEN
+            'No rows after joins for ORG/IND/NETWORK (check IDs/linkage).'
+        WHEN NVL(a.matching_rows, 0) > 0 THEN
+            NULL
+        ELSE
+            NVL((
+                SELECT LISTAGG(c.fail_field, ', ') WITHIN GROUP (ORDER BY c.fail_field)
+                FROM culprits c
+                WHERE c.rgnl_ntwk_id = p.p_rgnl_ntwk_id
+                  AND c.cnt > 0
+            ), 'Multiple filters failing (no single culprit). See FAIL_SUMMARY.')
+    END AS fail_due_to,
+
+    CASE
+        WHEN NVL(a.base_rows, 0) = 0 THEN NULL
+        ELSE
+            'CP_TYPE_CD=' || a.fail_cp_type_rows ||
+            ', SPCLTY_NM=' || a.fail_spclty_nm_rows ||
+            ', SPCLTY_EFF_DT=' || a.fail_spclty_effdt_rows ||
+            ', PRMRY_SPCLTY_IND=' || a.fail_primary_rows ||
+            ', RA_SOR_CD=' || a.fail_ra_sor_rows ||
+            ', RA_1_ID=' || a.fail_ra_1_id_rows ||
+            ', RA_EFCTV_DT=' || a.fail_ra_effdt_rows ||
+            ', ROLE_CD=' || a.fail_role_rows ||
+            ', J.DIR_DSPLY_IND=' || a.fail_dir_display_rows ||
+            ', J.EFF_DT=' || a.fail_j_effdt_rows ||
+            ', FULL_ADDRESS=' || a.fail_addr_rows
+    END AS fail_summary
+
+FROM params p
+LEFT JOIN agg a
+    ON a.rgnl_ntwk_id = p.p_rgnl_ntwk_id;
