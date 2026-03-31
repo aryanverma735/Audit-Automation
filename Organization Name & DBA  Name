@@ -1,11 +1,17 @@
-SELECT CASE 
-         WHEN (SELECT COUNT(*) 
-               FROM PROV P 
-               WHERE P.MSTR_PROV_ID = '<[Org_Nm_DBA_Nm_EID]>'
-                 AND UPPER(P.PROV_ORG_NM) = UPPER('<[Org_Nm_DBA_Nm_Organization_Name]>')) > 0
-          AND (SELECT COUNT(*) 
-               FROM POA P 
-               WHERE P.MSTR_PROV_ID = '<[Org_Nm_DBA_Nm_EID]>'
-                 AND UPPER(P.PROV_DBA_NM) = UPPER('<[Org_Nm_DBA_Nm_DBA_Name]>')) > 0
-         THEN         THEN 'Audit Pass'
+SELECT CASE
+         WHEN EXISTS (
+                SELECT 1
+                FROM PROV P
+                WHERE P.MSTR_PROV_ID = '1104365085'
+                  AND UPPER(P.PROV_ORG_NM) = UPPER('EOH Acquisition Group LLC')
+              )
+          AND EXISTS (
+                SELECT 1
+                FROM POA P
+                WHERE P.MSTR_PROV_ID = '1104365085'
+                  AND UPPER(P.PROV_DBA_NM) = UPPER('Carewell Health')
+              )
+         THEN 'Audit Pass'
          ELSE 'Audit Fail'
+       END AS audit_result
+FROM DUAL;
