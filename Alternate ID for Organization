@@ -3,9 +3,15 @@ SELECT
         WHEN COUNT(*) > 0 THEN 'Audit Pass'
         ELSE 'Audit Fail'
     END AS Audit_Status
-FROM PROV_ALT_IDFCTN
-WHERE MSTR_PROV_ID = '<[Alt_ID_Only_Org_EID]>'
-  AND ALTID_TXT = '<[Organization_ALT_ID.ByField("Alternate ID Value")]>'
-  AND ALTID_SOR_CD = '<[Organization_ALT_ID.ByField("Alternate ID Source Code")]>'
-  AND ALTID_TYPE_CD = '<[Organization_ALT_ID.ByField("Alternate ID Type Code")]>'
-  AND ALTID_ST_PRVNC_CD = '<[Organization_ALT_ID.ByField("Alternate ID State code")]>'
+FROM PROV_ALT_IDFCTN P
+JOIN CD_VAL C
+ON P.ALTID_SOR_CD = C.CD_VAL_CD
+JOIN CD_VAL CC 
+ON P.ALTID_TYPE_CD = CC.CD_VAL_CD
+WHERE P.MSTR_PROV_ID = '1103723939'
+  AND P.ALTID_TXT = 'K0031523'
+  -- Source Code
+  AND C.CD_VAL_NM = 'CMS'
+  -- Type Code
+  AND CC.CD_VAL_NM = 'Medicare Part B Number'
+  AND P.ALTID_ST_PRVNC_CD = 'KY'
