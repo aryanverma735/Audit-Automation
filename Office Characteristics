@@ -1,24 +1,25 @@
-select case WHEN  count(*) > 0
+select 
+case WHEN  count(*) > 0
   THEN 'Audit Pass'
   ELSE 'Audit Fail'
 END as Audit_Status
 from
-(SELECT 
-P.MSTR_PROV_ID,
-A.POA_KEY,
-OC.OFC_CHARSTC_TYPE_CD,
-OC.OFC_CHARSTC_CTGRY_CD,
-OC.POFC_CHARSTC_EFCTV_DT,
-OC.DIR_DSPLY_IND
+(SELECT *
 FROM PROV P
 JOIN POA  A
   ON A.MSTR_PROV_ID = P.MSTR_PROV_ID
-JOIN POFC_CHARSTC OC
-  ON OC.POA_KEY = A.POA_KEY
+JOIN POFC_CHARSTC PC
+  ON PC.POA_KEY = A.POA_KEY
+JOIN CD_VAL CC 
+  ON PC.OFC_CHARSTC_TYPE_CD = CC.CD_VAL_CD
+JOIN CD_VAL CO
+   ON PC.OFC_CHARSTC_CTGRY_CD = CO.CD_VAL_CD    
+ 
 
-WHERE P.MSTR_PROV_ID = '<[Office_Char_Org_EID]>'
-AND A.POA_KEY = '<[Office_char_Org_adrs.ByField("Address ID")]>'
-AND OC.OFC_CHARSTC_TYPE_CD = '<[Office_char_Org_Charac.ByField("Final Type Code")]>'
-AND OC.POFC_CHARSTC_EFCTV_DT = TO_DATE('<[Office_char_Org_Charac.ByField("Effective Date")]>','MM/DD/YYYY')
-AND OC.OFC_CHARSTC_CTGRY_CD = '<[Office_char_Org_Charac.ByField("Final Category Code")]>'
-AND OC.DIR_DSPLY_IND = '<[Office_char_Org_Charac.ByField("Final Display Indicator")]>')
+WHERE P.NPI = '1942583455'
+AND A.POA_KEY = '6011624625'
+AND CO.CD_VAL_NM = 'Facility Bed Type'
+AND PC.POFC_CHARSTC_EFCTV_DT = TO_DATE('04/27/2026','MM/DD/YYYY')
+AND CC.CD_VAL_NM = 'Assisted Living Beds'
+AND PC.DIR_DSPLY_IND = 'Y'
+)
